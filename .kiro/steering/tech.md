@@ -15,8 +15,8 @@ job that already has one here without an ADR in `docs/decisions/`.
 | Build / deps       | `dotnet` + NuGet, central pkg mgmt | Maven                       | `uv` + `pyproject.toml`    | `pnpm`                      |
 | Test runner        | NUnit 4                          | JUnit 5 (Jupiter)             | pytest 8                   | Playwright Test             |
 | UI driver          | Playwright for .NET              | Playwright for Java           | Playwright for Python      | Playwright                  |
-| API client         | `HttpClient` + Refit             | REST Assured                  | `httpx`                    | Playwright `APIRequestContext` |
-| Assertions         | FluentAssertions                 | AssertJ                       | plain `assert` + pytest    | Playwright `expect`         |
+| API client         | `HttpClient` (see ADR 0003)      | REST Assured                  | `httpx`                    | Playwright `APIRequestContext` |
+| Assertions         | AwesomeAssertions (see ADR 0002) | AssertJ                       | plain `assert` + pytest    | Playwright `expect`         |
 | Data models        | records + System.Text.Json       | records + Jackson             | Pydantic v2                | Zod                         |
 | Fake data          | Bogus                            | Datafaker                     | Faker                      | `@faker-js/faker`           |
 | Parallelism        | NUnit `[Parallelizable]`         | JUnit parallel execution      | `pytest-xdist`             | Playwright workers          |
@@ -27,6 +27,20 @@ job that already has one here without an ADR in `docs/decisions/`.
 
 Allure is the single human-facing report format across all four modules so one
 CI job can publish one combined report.
+
+### Two C# choices that carry a reason
+
+**Assertions: AwesomeAssertions, never FluentAssertions 8+.** FluentAssertions
+moved to a paid licence for commercial use at version 8.0; 7.x stays Apache-2.0
+but is frozen to bugfixes. AwesomeAssertions is the MIT fork of 7.x with a
+compatible API. Naming the library without a version — as this table originally
+did — quietly points every `dotnet add package` at a paid dependency. See
+`docs/decisions/0002-assertion-library-licensing.md`.
+
+**API client: plain `HttpClient`, not Refit.** A test client needs the raw status
+and body on every call, and negative tests deliberately send payloads a generated
+interface is designed to prevent. See
+`docs/decisions/0003-httpclient-over-refit.md`.
 
 ## Canonical commands
 

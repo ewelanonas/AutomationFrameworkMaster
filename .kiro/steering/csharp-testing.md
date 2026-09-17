@@ -5,8 +5,15 @@ fileMatchPattern: ["csharp/**", "**/*.cs", "**/*.csproj", "**/*.sln", "**/Direct
 
 # C# / .NET Automation Conventions
 
-Stack: .NET 8, NUnit 4, Playwright for .NET, FluentAssertions, Refit,
-Bogus, Allure.NUnit, Testcontainers for .NET.
+Stack: .NET 8, NUnit 4, Playwright for .NET, AwesomeAssertions, `HttpClient`,
+JsonSchema.Net, Bogus, Allure.NUnit, Testcontainers for .NET.
+
+Two choices here carry a reason and must not be "corrected" back:
+
+- **AwesomeAssertions, never FluentAssertions 8+.** FluentAssertions moved to a
+  paid licence for commercial use at 8.0. AwesomeAssertions is the MIT fork of
+  7.x with a compatible API. See `docs/decisions/0002-assertion-library-licensing.md`.
+- **Plain `HttpClient`, not Refit.** See `docs/decisions/0003-httpclient-over-refit.md`.
 
 ## Project layout
 
@@ -19,7 +26,7 @@ csharp/
 │   ├── Support/     Config, DriverFactory, Waits, Logging, Redaction
 │   ├── Models/      records + JsonSerializerOptions
 │   ├── Pages/       page + component objects
-│   ├── Clients/     Refit interfaces + typed wrappers
+│   ├── Clients/     typed HttpClient wrappers returning ApiResult&lt;T&gt;
 │   └── Flows/       business actions
 └── tests/
     ├── AutomationFramework.UiTests/
@@ -50,6 +57,18 @@ and `RestorePackagesWithLockFile`. Commit `packages.lock.json`.
   lifecycle, never for helper grab-bags.
 - `[TestFixture]`, `[Parallelizable(ParallelScope.All)]` at assembly level via
   `[assembly: LevelOfParallelism(n)]` in `AssemblyInfo.cs`.
+- **`[assembly: FixtureLifeCycle(LifeCycle.InstancePerTestCase)]` is mandatory.**
+  NUnit otherwise runs every test method of a fixture on **one** instance, so with
+  `ParallelScope.All` concurrent tests share the fixture's instance fields. A
+  page or context field then gets overwritten and nulled underneath a running
+  test, and it surfaces as `TargetClosedException`, `net::ERR_ABORTED` or a null
+  reference — never as something that looks like a lifecycle problem. This is the
+  NUnit equivalent of the Java module's
+  `junit.jupiter.testinstance.lifecycle.default = per_method`.
+- Only one `[OneTimeSetUp]` per fixture. NUnit permits several and does not
+  guarantee their order, so anything with an ordering requirement — such as
+  applying the expect timeout before creating the browser — must live in one
+  method.
 - Tag with `[Category("Smoke")]`, `[Category("Regression")]`,
   `[Category("Contract")]`. CI selects with `--filter "Category=Smoke"`.
 - Method naming: `Should<ExpectedOutcome>_When<Condition>`.
@@ -87,10 +106,20 @@ public sealed class CheckoutTests : UiTestBase
 ## Playwright for .NET
 
 - Do not inherit `PageTest`/`PlaywrightTest` if you need custom parallel
-  scoping; own the lifecycle in `Support/BrowserFactory` and expose `IPage`
+  scoping; own the lifecycle in `Support/PlaywrightFactory` and expose `IPage`
   through the fixture.
 - One `IBrowser` per assembly, one `IBrowserContext` **per test** for
   isolation. Never share a context across tests.
+- **Create Playwright eagerly in one-time setup, inside `Task.Run`.** Creating it
+  lazily on first use inside an `async Task [SetUp]` deadlocks: NUnit's async
+  adapter blocks the worker without pumping a message loop, while Playwright posts
+  continuations back to the captured `SynchronizationContext`. The run hangs with
+  no output at all, which looks like a broken environment rather than a deadlock.
+  `Task.Run` detaches the work from any ambient context.
+- Playwright for .NET does **not** download browsers on first use, unlike the Java
+  and Python bindings. The documented route needs PowerShell 7 installed
+  separately; `Microsoft.Playwright.Program.Main(["install", browser])` is the same
+  entry point without that dependency.
 - Enable tracing per test, keep on failure only:
 
 ```csharp
@@ -102,16 +131,25 @@ await Context.Tracing.StopAsync(new() { Path = failed ? tracePath : null });
 - Locators: `Page.GetByTestId`, `GetByRole`, `GetByLabel`. Set
   `TestIdAttribute` once in setup.
 - Assertions on UI state use `Assertions.Expect(locator)` (web-first,
-  auto-retrying), not `FluentAssertions` on a snapshot value.
+  auto-retrying), not an assertion library on a snapshot value.
+- Set `Assertions.SetDefaultExpectTimeout(...)` from the timeout policy in
+  one-time setup. `SetDefaultTimeout` on the context does **not** reach
+  web-first assertions; without this they silently keep the built-in 5s.
 - Never `Page.WaitForTimeoutAsync`.
 
 ## API clients
 
-- Declare the contract with a Refit interface; wrap it in a small typed client
-  that returns `Result`-shaped responses so negative tests can inspect status
-  codes without exceptions.
-- One `HttpClient` per base address via `IHttpClientFactory`; never
-  `new HttpClient()` per call.
+- One method per operation on a plain typed client, returning an
+  `ApiResult<T>`-shaped record so negative tests can inspect status codes without
+  exceptions. Clients throw on nothing.
+- Capture the response body as text eagerly. An `HttpResponseMessage` content
+  stream can only be read once, and both the report attachment and the schema
+  validator need it.
+- One `HttpClient` for the run, injected into clients via the constructor rather
+  than read from a static. Never `new HttpClient()` per call — it exhausts
+  sockets and loses the shared handler.
+- Escape path and query values with `Uri.EscapeDataString`. Nothing generates the
+  URL for you now, so this is a review item.
 - Add a `DelegatingHandler` for correlation id injection, request/response
   logging with redaction, and retry on transport faults only (never on 4xx).
 - `System.Text.Json` with `JsonSerializerOptions` centrally configured;
@@ -120,7 +158,7 @@ await Context.Tracing.StopAsync(new() { Path = failed ? tracePath : null });
 
 ## Assertions
 
-- FluentAssertions for values and objects, with `because` reasons.
+- AwesomeAssertions for values and objects, with `because` reasons.
 - Use `AssertionScope` to check several fields of one result in one go.
 - `Should().BeEquivalentTo(expected, opts => opts.Excluding(x => x.Id))` for
   object comparison instead of field-by-field chains.
