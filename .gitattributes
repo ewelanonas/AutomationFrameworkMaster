@@ -1,0 +1,35 @@
+# Normalise line endings so a Windows and a Linux CI runner produce identical
+# diffs. Without this, a polyglot repo generates whitespace-only churn.
+* text=auto eol=lf
+
+# Windows-only scripts need CRLF
+*.ps1   text eol=crlf
+*.cmd   text eol=crlf
+*.bat   text eol=crlf
+
+# Shell scripts and Maven/Gradle wrappers must stay LF and executable
+*.sh    text eol=lf
+mvnw    text eol=lf
+gradlew text eol=lf
+
+# Binary — never diff, never convert
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.pdf   binary
+*.zip   binary
+*.webm  binary
+*.mp4   binary
+*.jar   binary
+
+# Generated test output — keep out of diffs and language stats
+reports/**            linguist-generated
+*.trx                 linguist-generated
+allure-results/**     linguist-generated
+
+# Lock files are committed but not worth reviewing line by line
+packages.lock.json    linguist-generated -diff
+uv.lock               linguist-generated -diff
+pnpm-lock.yaml        linguist-generated -diff

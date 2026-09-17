@@ -1,0 +1,76 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--headless", "--isolated"],
+      "disabled": false
+    },
+
+    "fetch": {
+      "command": "uvx",
+      "args": ["mcp-server-fetch"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false
+    },
+
+    "git": {
+      "command": "uvx",
+      "args": ["mcp-server-git", "--repository", "d:/git/AutomationFrameworkMaster"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false
+    },
+
+    "time": {
+      "command": "uvx",
+      "args": ["mcp-server-time", "--local-timezone", "UTC"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false
+    },
+
+    "github": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "-e",
+        "GITHUB_TOOLSETS=actions,pull_requests,issues,repos",
+        "-e",
+        "GITHUB_READ_ONLY=1",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "disabled": true
+    },
+
+    "atlassian": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.atlassian.com/v2/mcp"],
+      "disabled": true
+    },
+
+    "postman": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.postman.com/mcp"],
+      "disabled": true
+    },
+
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "d:/git/AutomationFrameworkMaster/shared",
+        "d:/git/AutomationFrameworkMaster/reports"
+      ],
+      "disabled": true
+    }
+  }
+}
