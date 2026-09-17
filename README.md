@@ -14,6 +14,7 @@ See [Working with Kiro](#working-with-kiro).
 
 ## Contents
 
+- [Branching model](#branching-model)
 - [Layout](#layout)
 - [The architecture](#the-architecture)
 - [Non-negotiable rules](#non-negotiable-rules)
@@ -30,9 +31,9 @@ See [Working with Kiro](#working-with-kiro).
 
 ## Current state
 
-The standards, the agent setup, and the documentation are in place. **The four
-language modules are not built yet.** Pick one and run
-[workflow 1](#1-bootstrap-a-new-module) to bootstrap it.
+The standards, the agent setup, and the documentation are in place on `main`.
+**No language module is built yet.** Each one gets its own branch — switch to it
+and run [workflow 1](#1-bootstrap-a-new-module) to bootstrap the module.
 
 | Piece | Status |
 | --- | --- |
@@ -40,23 +41,110 @@ language modules are not built yet.** Pick one and run
 | `.kiro/skills/` — 8 skills | Ready |
 | `docs/mcp/` + MCP config template | Ready |
 | `.env.example`, `.gitignore` | Ready |
-| `csharp/` `java/` `python/` `typescript/` | Not created |
+| `csharp/` `java/` `python/` `typescript/` | See [branching model](#branching-model) |
 | `shared/`, `docs/decisions/`, `.github/workflows/` | Not created |
+
+## Branching model
+
+Each language module lives on its own long-lived branch. `main` carries only
+the shared foundation.
+
+```text
+main                      Standards, skills, docs, shared/ contracts.
+│                         No language module code.
+├── framework/java        main + java/
+├── framework/csharp      main + csharp/
+├── framework/python      main + python/
+└── framework/typescript  main + typescript/
+```
+
+| Branch | Status |
+| --- | --- |
+| `main` | Ready |
+| `framework/java` | In progress |
+| `framework/csharp` | Not created |
+| `framework/python` | Not created |
+| `framework/typescript` | Not created |
+
+### Checking out a framework
+
+Clone once, then switch to the stack you need:
+
+```powershell
+git clone https://github.com/ewelanonas/AutomationFrameworkMaster.git
+cd AutomationFrameworkMaster
+git switch framework/java
+```
+
+Already cloned:
+
+```powershell
+git fetch origin
+git switch framework/java
+```
+
+Every framework branch contains the full `.kiro/` setup, so the agent applies
+the same standards no matter which one you are on.
+
+### The one rule that keeps this working
+
+**Shared changes go to `main` first, then merge down. Never the reverse.**
+
+```text
+Editing .kiro/, docs/, shared/, README, .gitignore
+    → commit on main → merge main into each framework/* branch
+
+Editing java/ (or csharp/, python/, typescript/)
+    → commit on that framework branch only
+```
+
+```powershell
+# after a change lands on main, refresh a framework branch
+git switch framework/java
+git merge origin/main
+```
+
+Why this matters, stated plainly: **long-lived parallel branches drift.** If the
+Java branch edits `automation-principles.md` and the Python branch edits it too,
+you get a conflict that nobody wants to resolve, and eventually four different
+sets of standards. Keeping the shared foundation single-sourced on `main` is
+what stops that. It costs one merge per branch when a standard changes, which is
+a fair price.
+
+If you would rather see all four stacks in one working tree — useful when
+changing a standard that affects every module — say so and we can flatten this
+to trunk-based with folder ownership instead. The tradeoff is that a Java
+developer then clones three stacks they will never run.
+
+### Day-to-day work
+
+Do not commit straight to a `framework/*` branch for anything non-trivial.
+Branch off it, then open a PR back into it:
+
+```powershell
+git switch framework/java
+git switch -c feat/java-checkout-tests
+# ... work ...
+git push -u origin feat/java-checkout-tests
+gh pr create --base framework/java
+```
 
 ## Layout
 
-The target shape. Entries marked *(planned)* do not exist yet.
+The target shape across all branches. On any single branch you see `.kiro/`,
+`docs/`, `shared/`, and **one** language module — the one that branch owns.
+Entries marked *(planned)* do not exist on any branch yet.
 
 ```text
 AutomationFrameworkMaster/
-├── .kiro/
+├── .kiro/                                         on every branch
 │   ├── steering/         Standards the agent always applies (15 files)
 │   ├── skills/           Task workflows the agent follows (8 skills)
 │   └── settings/         MCP server config — gitignored, copied from docs/mcp/
-├── csharp/               .NET module              (planned)
-├── java/                 JVM module               (planned)
-├── python/               Python module            (planned)
-├── typescript/           TypeScript module        (planned)
+├── csharp/               .NET module              on framework/csharp
+├── java/                 JVM module               on framework/java
+├── python/               Python module            on framework/python
+├── typescript/           TypeScript module        on framework/typescript
 ├── shared/                                        (planned)
 │   ├── contracts/        OpenAPI / JSON Schema — the source of truth
 │   ├── testdata/         Language-neutral payloads
