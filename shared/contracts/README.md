@@ -79,6 +79,23 @@ where. That is the whole return on setting `additionalProperties: false` and on
 validating the detail endpoint separately from the list, rather than assuming
 one representation stands in for the other.
 
+### Accounts lock after repeated failed logins
+
+`POST /users/login` returns **`423 Locked`** once an account has accumulated
+enough failed attempts, and it stays locked for the correct password too:
+
+```json
+{"error":"Account locked, too many failed attempts. Please contact the administrator."}
+```
+
+This is worth knowing before writing a negative auth test. Sending wrong
+passwords to a shared account locked the demo customer out from under both the
+Java and C# suites at once, turning every sign-in test red.
+
+Both modules now register a disposable account per test via
+`POST /users/register` (201, and the account can sign in immediately). See the
+"Accounts are data" section in `.kiro/steering/test-data-and-secrets.md`.
+
 ### The demo data is reseeded periodically
 
 Product ids are **not stable**. A set of ids captured one hour was returning
