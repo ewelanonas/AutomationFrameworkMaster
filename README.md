@@ -31,9 +31,14 @@ See [Working with Kiro](#working-with-kiro).
 
 ## Current state
 
-The standards, the agent setup, and the documentation are in place on `main`.
-**No language module is built yet.** Each one gets its own branch — switch to it
-and run [workflow 1](#1-bootstrap-a-new-module) to bootstrap the module.
+The standards, the agent setup, and the shared contracts are in place on `main`.
+**The Java module is built and green.** The other three each get their own
+branch — switch to it and run [workflow 1](#1-bootstrap-a-new-module).
+
+```powershell
+git switch framework/java
+mvn -f java/pom.xml -B clean test     # 33 tests, ~28s
+```
 
 | Piece | Status |
 | --- | --- |
@@ -43,7 +48,8 @@ and run [workflow 1](#1-bootstrap-a-new-module) to bootstrap the module.
 | `.env.example`, `.gitignore` | Ready |
 | `shared/environments/`, `shared/contracts/` | Ready — [demo target](#the-demo-target) |
 | `docs/decisions/` | Ready — 1 ADR |
-| `csharp/` `java/` `python/` `typescript/` | See [branching model](#branching-model) |
+| `java/` on `framework/java` | Ready — 33 tests |
+| `csharp/` `python/` `typescript/` | Branch not created yet |
 | `.github/workflows/` | Not created |
 
 ## Branching model
@@ -63,7 +69,7 @@ main                      Standards, skills, docs, shared/ contracts.
 | Branch | Status |
 | --- | --- |
 | `main` | Ready |
-| `framework/java` | In progress |
+| `framework/java` | **Ready** — 33 tests green in ~28s. [Module README](https://github.com/ewelanonas/AutomationFrameworkMaster/blob/framework/java/java/README.md) |
 | `framework/csharp` | Not created |
 | `framework/python` | Not created |
 | `framework/typescript` | Not created |
@@ -291,6 +297,10 @@ dotnet test    csharp/AutomationFramework.sln --no-build --filter "Category=Smok
 silently in parallel. Also: LINQ. Keep it out of tests.
 
 ### Java
+
+**Built and green on `framework/java`** — 33 tests in ~28s. The module's own
+README covers how to run it, the parts worth reading first, and three findings
+from building it.
 
 **Stack:** JDK 17 · Maven · JUnit 5 · Playwright for Java · REST Assured ·
 AssertJ · Jackson · Datafaker · Allure · Testcontainers · SLF4J + Logback
