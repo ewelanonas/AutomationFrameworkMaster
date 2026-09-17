@@ -45,7 +45,11 @@
       "properties": {
         "id": { "$ref": "#/$defs/ulid" },
         "name": { "type": "string", "minLength": 1 },
-        "slug": { "type": "string", "pattern": "^[a-z0-9-]+$" }
+        "slug": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "parent_id": {
+          "description": "Present only on GET /products/{id}, where categories are expanded with their parent. Null for a top-level category. Optional so one schema covers both the list and detail representations.",
+          "anyOf": [{ "$ref": "#/$defs/ulid" }, { "type": "null" }]
+        }
       }
     },
     "brand": {

@@ -51,18 +51,33 @@ data early.
 
 ### The detail response is not the list response
 
-`GET /products/{id}` returns everything a list item has **plus** a `specs`
-array. `GET /products` omits `specs` entirely.
+`GET /products/{id}` returns everything a list item has, **plus**:
 
-`toolshop-product.schema.json` therefore lists `specs` as optional rather than
+| Extra on the detail response | Shape |
+| --- | --- |
+| `specs` | array of `{id, product_id, spec_name, spec_value, spec_unit}` |
+| `category.parent_id` | ULID, or null for a top-level category |
+
+`GET /products` omits both.
+
+`toolshop-product.schema.json` therefore marks both as optional rather than
 required, so one schema covers both representations. The alternative — two
 schemas — duplicates every other field and guarantees they drift apart.
 
-This is worth reading as a worked example: the first version of this schema was
-derived from the list response alone, so it did not know `specs` existed. The
-contract test against `GET /products/{id}` failed on
-`additionalProperties: false`, which is precisely the job that setting does.
-The schema was wrong, not the test.
+This is worth reading as a worked example. The first version of this schema was
+derived from the list response alone, so it knew about neither field. The
+contract test against `GET /products/{id}` failed twice on
+`additionalProperties: false`, naming the exact property each time:
+
+```text
+/category: property 'parent_id' is not defined in the schema
+           and the schema does not allow additional properties
+```
+
+The schema was wrong, not the test — and the failure message said precisely
+where. That is the whole return on setting `additionalProperties: false` and on
+validating the detail endpoint separately from the list, rather than assuming
+one representation stands in for the other.
 
 ### The demo data is reseeded periodically
 
