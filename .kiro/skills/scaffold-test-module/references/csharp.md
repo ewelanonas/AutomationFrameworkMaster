@@ -39,24 +39,43 @@ dotnet add csharp/tests/AutomationFramework.ApiTests reference csharp/src/Automa
 Pin every version here, nowhere else. Packages needed:
 
 `NUnit`, `NUnit3TestAdapter`, `Microsoft.NET.Test.Sdk`,
-`Microsoft.Playwright.NUnit`, `FluentAssertions`, `Refit.HttpClientFactory`,
-`Microsoft.Extensions.Configuration.Json`,
+`Microsoft.Playwright`, `Microsoft.Playwright.NUnit`, `AwesomeAssertions`,
+`JsonSchema.Net`, `Microsoft.Extensions.Configuration.Json`,
 `Microsoft.Extensions.Configuration.EnvironmentVariables`,
-`Microsoft.Extensions.Options.DataAnnotations`, `Microsoft.Extensions.Http`,
-`Bogus`, `Allure.NUnit`, `Serilog.Extensions.Logging`, `Testcontainers`,
-`JunitXml.TestLogger`.
+`Microsoft.Extensions.Configuration.Binder`, `Bogus`, `Allure.NUnit`,
+`Allure.Net.Commons`, `Testcontainers`, `JunitXml.TestLogger`.
+
+**Not** `FluentAssertions` (paid for commercial use from 8.0 — use
+`AwesomeAssertions`, the MIT fork of 7.x) and **not** `Refit`. See
+`docs/decisions/0002-assertion-library-licensing.md` and `0003-httpclient-over-refit.md`.
+
+For `net8.0`, pin the `Microsoft.Extensions.Configuration.*` packages to the
+`8.0.x` band. Also note `System.Threading.Lock` is .NET 9+; use a plain `object`
+as a lock target.
 
 ## Parallel execution
 
 `csharp/tests/.../AssemblyInfo.cs`:
 
 ```csharp
-[assembly: Parallelizable(ParallelScope.Fixtures)]
-[assembly: LevelOfParallelism(4)]
+[assembly: Parallelizable(ParallelScope.All)]
+[assembly: LevelOfParallelism(2)]
+[assembly: FixtureLifeCycle(LifeCycle.InstancePerTestCase)]
 ```
 
-Per-fixture state must be instance-level. Any `static` mutable field breaks
-parallel runs.
+**All three lines matter, and the third is the one people miss.** Without
+`FixtureLifeCycle`, NUnit runs every test method of a fixture on a single
+instance, so concurrent tests share its instance fields. A `_page` or `_context`
+field then gets overwritten and nulled underneath a running test, and it surfaces
+as `TargetClosedException`, `net::ERR_ABORTED` or a null reference rather than as
+a lifecycle problem.
+
+`static` mutable state breaks parallel runs too — but with a shared fixture
+instance, instance fields are just as shared.
+
+Choose the worker count against the target, not the machine. This repo's demo
+sandbox starts refusing connections at four workers, and the suite ran three
+times faster at two.
 
 ## Playwright lifecycle
 

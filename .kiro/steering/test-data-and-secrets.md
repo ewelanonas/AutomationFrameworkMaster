@@ -91,6 +91,36 @@ Rules:
   derived from the same builder output.
 - Builders are immutable/fluent, returning a new instance per `With...` call.
 
+## Accounts are data, and data is per test
+
+A shared login is shared mutable state, even when no test writes to the account
+directly. Servers keep counters and flags against an identity: failed-attempt
+counts, lockouts, rate limits, sessions, MFA state, "must change password".
+
+Any test that authenticates negatively — a wrong password, a tampered token, an
+expired session — moves that hidden state. Do it enough times to a shared account
+and the account locks, at which point **every** test that signs in fails,
+including all the happy paths.
+
+This is not hypothetical. It happened here: the negative sign-in tests locked the
+demo customer account, and the API began answering `423 Locked` to every login
+across **two** language modules at once. The suites went from green to almost
+entirely red with no code change.
+
+Rules:
+
+- **Register a fresh account per test** for anything that authenticates. Creation
+  over the API costs a few hundred milliseconds and buys complete isolation.
+- A test that deliberately fails a login **must** own the account it abuses.
+- Fixed accounts from config are acceptable only for read-only scenarios, and
+  even then prefer a created one.
+- A test that locks, suspends, or otherwise burns an account is fine, provided the
+  account is disposable. Tag it so it is visible.
+- Where creation is impossible, allocate one account **per parallel worker** and
+  never share across workers.
+- Prefer asserting the lockout deliberately rather than discovering it. Behaviour
+  a suite can break itself on is behaviour worth a test.
+
 ## Uniqueness and correlation
 
 - Every run generates a **run id** (short uuid or CI build number). Include it

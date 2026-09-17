@@ -32,12 +32,15 @@ See [Working with Kiro](#working-with-kiro).
 ## Current state
 
 The standards, the agent setup, and the shared contracts are in place on `main`.
-**The Java module is built and green.** The other three each get their own
+**The Java and C# modules are built and green.** The other two each get their own
 branch — switch to it and run [workflow 1](#1-bootstrap-a-new-module).
 
 ```powershell
 git switch framework/java
-mvn -f java/pom.xml -B clean test     # 33 tests, ~28s
+mvn -f java/pom.xml -B clean test              # 33 tests, ~28s
+
+git switch framework/csharp
+dotnet test csharp/AutomationFramework.sln     # 34 tests, ~12s
 ```
 
 | Piece | Status |
@@ -47,9 +50,10 @@ mvn -f java/pom.xml -B clean test     # 33 tests, ~28s
 | `docs/mcp/` + MCP config template | Ready |
 | `.env.example`, `.gitignore` | Ready |
 | `shared/environments/`, `shared/contracts/` | Ready — [demo target](#the-demo-target) |
-| `docs/decisions/` | Ready — 1 ADR |
+| `docs/decisions/` | Ready — 3 ADRs |
 | `java/` on `framework/java` | Ready — 33 tests |
-| `csharp/` `python/` `typescript/` | Branch not created yet |
+| `csharp/` on `framework/csharp` | Ready — 34 tests |
+| `python/` `typescript/` | Branch not created yet |
 | `.github/workflows/` | Not created |
 
 ## Branching model
@@ -70,7 +74,7 @@ main                      Standards, skills, docs, shared/ contracts.
 | --- | --- |
 | `main` | Ready |
 | `framework/java` | **Ready** — 33 tests green in ~28s. [Module README](https://github.com/ewelanonas/AutomationFrameworkMaster/blob/framework/java/java/README.md) |
-| `framework/csharp` | Not created |
+| `framework/csharp` | **Ready** — 34 tests green in ~12s. [Module README](https://github.com/ewelanonas/AutomationFrameworkMaster/blob/framework/csharp/csharp/README.md) |
 | `framework/python` | Not created |
 | `framework/typescript` | Not created |
 
@@ -260,8 +264,16 @@ each ecosystem sets.
 
 ### C# / .NET
 
-**Stack:** .NET 8 · NUnit 4 · Playwright for .NET · FluentAssertions · Refit ·
-Bogus · Allure.NUnit · Testcontainers for .NET
+**Built and green on `framework/csharp`** — 34 tests in ~12s. The module's own
+README covers six findings from building it, several of which apply to any NUnit
+suite.
+
+**Stack:** .NET 8 · NUnit 4 · Playwright for .NET · AwesomeAssertions ·
+`HttpClient` · JsonSchema.Net · Bogus · Allure.NUnit · Testcontainers for .NET
+
+Two choices carry a reason: **AwesomeAssertions** rather than FluentAssertions,
+whose v8 needs a paid seat for commercial use ([ADR 0002](docs/decisions/0002-assertion-library-licensing.md)),
+and plain **`HttpClient`** rather than Refit ([ADR 0003](docs/decisions/0003-httpclient-over-refit.md)).
 
 ```text
 csharp/
@@ -288,13 +300,17 @@ dotnet test    csharp/AutomationFramework.sln --no-build --filter "Category=Smok
 - Parallelism via `[assembly: Parallelizable]` + `LevelOfParallelism`. Any
   `static` mutable field in a fixture breaks it.
 - All I/O is `async`. No `async void`, no `.Result`, no `.Wait()`.
-- `Assertions.Expect(locator)` for UI state (auto-retries); FluentAssertions
-  for plain values and models.
-- Refit declares the contract; a thin wrapper returns status + body so negative
-  tests don't need try/catch.
+- `Assertions.Expect(locator)` for UI state (auto-retries); AwesomeAssertions
+  for plain values and models. Set `SetDefaultExpectTimeout` from config —
+  the context timeout does not reach web-first assertions.
+- Typed `HttpClient` wrappers return status + body so negative tests don't need
+  try/catch.
 
-**The trap:** static state in fixtures. It works single-threaded and fails
-silently in parallel. Also: LINQ. Keep it out of tests.
+**The trap:** `[assembly: FixtureLifeCycle(LifeCycle.InstancePerTestCase)]`. Leave
+it out and NUnit runs every test of a fixture on one instance, so concurrent tests
+overwrite each other's page and context. It surfaces as `TargetClosedException`
+and null references, never as a lifecycle problem. Also: static state in fixtures,
+and LINQ chains in tests.
 
 ### Java
 
