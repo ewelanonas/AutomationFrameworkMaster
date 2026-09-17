@@ -15,11 +15,12 @@ the [root README](../README.md#branching-model).
 
 ```powershell
 # from the repository root
-Copy-Item .env.example .env     # fill in the demo credentials it documents
-
 mvn -f java/pom.xml spotless:apply          # format
-mvn -f java/pom.xml -B clean test           # everything, ~28s
+mvn -f java/pom.xml -B clean test           # everything, ~70s
 ```
+
+No credentials to configure. Every test that needs an account registers its own
+over the API — see [finding 4](#4-a-shared-test-account-is-shared-mutable-state).
 
 Playwright downloads its browsers on first use. To do it explicitly, which is
 what you want in CI so it can be cached:
@@ -154,7 +155,7 @@ the wrong reason and buries the real status code.
 
 ---
 
-## Three things this suite caught while being built
+## Four things this suite caught while being built
 
 Worth keeping, because they are the reasons the rules exist.
 
@@ -212,6 +213,33 @@ alone, so a genuine authorization defect logged in different words still fails.
 
 ---
 
+### 4. A shared test account is shared mutable state
+
+Found later, while building the C# module, and it broke **both** suites at once.
+
+The negative sign-in tests send a wrong password on purpose. That increments a
+server-side failed-attempt counter, and after enough runs the demo API started
+answering **`423 Locked`** to *every* login — including the happy paths:
+
+```json
+{"error":"Account locked, too many failed attempts. Please contact the administrator."}
+```
+
+Not an application bug. A test-design defect, and one the house rules name
+directly: *shared user accounts mutated by tests*. The account was never written
+to by any test; the server keeps state against the identity regardless.
+
+`AccountFlow.createCustomer()` now registers a throwaway account over the API for
+every test that authenticates. A per-test account can be locked, abused, or left
+in any state, because nothing else will ever use it. As a side effect the suite
+needs **no credentials configured at all** — `TestPreconditions` is gone.
+
+The lockout itself is now asserted deliberately, because behaviour a suite can
+break itself on is behaviour worth a test. It is tagged `destructive` and excluded
+from routine runs by `excludedGroups` in the POM.
+
+---
+
 ## Test design notes
 
 **No hardcoded product ids.** The demo data is reseeded periodically — ids
@@ -231,9 +259,9 @@ normally produce. The test asserts 401 and the inconsistency is recorded in
 API owners. A test written against the status we would prefer fails while the
 product behaves as built.
 
-**Missing credentials skip, they do not fail.** `TestPreconditions` aborts with
-a message naming the exact variable, so a fresh clone stays green while still
-saying what to set. CI supplies these, so a skip *there* is a pipeline bug.
+**No credentials required.** Every test that authenticates registers its own
+account, so a fresh clone runs green with nothing configured. `AF_AUTH_*` is still
+read by the config layer for a real project that has fixed test accounts.
 
 ---
 
@@ -242,10 +270,12 @@ saying what to set. CI supplies these, so a skip *there* is a pipeline bug.
 Honest list of what a production suite would add:
 
 - **No `.github/workflows/`.** Nothing runs this in CI yet.
-- **No cleanup path exercised.** The demo API is read-only for a customer
-  account, so nothing is created and nothing needs deleting. `ProductsClient`
-  has `create` and `deleteIgnoringMissing` for the authorization-boundary test,
-  but no test currently seeds a record.
+- **Registered accounts are never deleted.** The demo API offers no self-delete.
+  Every address is on `example.invalid` with the run id embedded so a janitor can
+  find them; a real project registers cleanup at creation time.
+- **No product cleanup path exercised.** `ProductsClient` has `create` and
+  `deleteIgnoringMissing` for the authorization-boundary test, but no test
+  currently seeds a product.
 - **No cross-tenant test.** The demo has roles but not tenants, so the
   highest-value authorization case has nowhere to run here.
 - **No Testcontainers usage.** Nothing to stand up against a hosted demo.

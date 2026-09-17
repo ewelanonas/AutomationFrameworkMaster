@@ -34,7 +34,13 @@
 
     <!-- Suite selection. Override on the command line: -Dgroups=smoke -->
     <groups/>
-    <excludedGroups>quarantine</excludedGroups>
+    <!--
+      quarantine: known-unstable, excluded from every gating run.
+      destructive: deliberately burns a resource, such as the account-lockout
+      test. Safe because it owns a disposable account, but heavy on a shared
+      sandbox, so it stays out of routine runs.
+    -->
+    <excludedGroups>quarantine,destructive</excludedGroups>
     <af.env>local</af.env>
   </properties>
 

@@ -30,6 +30,14 @@ public abstract class UiTestBase {
   protected final AuthClient auth = new AuthClient();
   protected final AuthFlow authFlow = new AuthFlow();
 
+  /**
+   * Registers disposable accounts. Any test that signs in uses one of these rather than a shared
+   * account — see {@link com.company.automation.flows.AccountFlow} for what happened when they did
+   * not.
+   */
+  protected final com.company.automation.flows.AccountFlow accounts =
+      new com.company.automation.flows.AccountFlow();
+
   /** The page for this test. */
   protected Page page() {
     return BrowserExtension.page();

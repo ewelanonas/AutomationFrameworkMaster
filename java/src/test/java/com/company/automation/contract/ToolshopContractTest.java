@@ -3,9 +3,7 @@ package com.company.automation.contract;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.company.automation.ApiTestBase;
-import com.company.automation.TestPreconditions;
 import com.company.automation.clients.ApiResult;
-import com.company.automation.models.LoginResponse;
 import com.company.automation.models.PagedProducts;
 import com.company.automation.models.Product;
 import com.company.automation.support.SchemaValidator;
@@ -85,10 +83,10 @@ class ToolshopContractTest extends ApiTestBase {
   @Test
   @DisplayName("the login response matches its schema exactly")
   void loginResponseMatchesSchema() {
-    TestPreconditions.requireCustomerCredentials(config);
+    com.company.automation.models.TestAccount account = accounts.createCustomer();
 
-    ApiResult<LoginResponse> result =
-        auth.login(config.credentials().requireUsername(), config.credentials().requirePassword());
+    ApiResult<com.company.automation.models.LoginResponse> result =
+        auth.login(account.email(), account.password());
     assertThat(result.status()).isEqualTo(200);
 
     List<String> violations =

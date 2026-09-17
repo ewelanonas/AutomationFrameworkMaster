@@ -21,4 +21,12 @@ public abstract class ApiTestBase {
   protected final Config config = ConfigLoader.config();
   protected final ProductsClient products = new ProductsClient();
   protected final AuthClient auth = new AuthClient();
+
+  /**
+   * Registers disposable accounts. Any test that signs in uses one of these rather than a shared
+   * account — see {@link com.company.automation.flows.AccountFlow} for what happened when they did
+   * not.
+   */
+  protected final com.company.automation.flows.AccountFlow accounts =
+      new com.company.automation.flows.AccountFlow();
 }
