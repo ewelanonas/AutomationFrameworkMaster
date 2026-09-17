@@ -1,0 +1,40 @@
+{
+  "allure": {
+    "directory": "allure-results",
+    "links": [
+      "https://example.invalid/browse/{issue}",
+      "https://example.invalid/tests/{tms}"
+    ],
+    "categories": [
+      {
+        "name": "Product defect",
+        "matchedStatuses": ["failed"],
+        "messageRegex": ".*Expected.*but found.*|.*Should\\(\\).*"
+      },
+      {
+        "name": "Test defect",
+        "matchedStatuses": ["broken"],
+        "messageRegex": ".*NullReferenceException.*|.*Timeout.*waiting for locator.*|.*InvalidOperationException.*"
+      },
+      {
+        "name": "Contract drift",
+        "matchedStatuses": ["failed"],
+        "messageRegex": ".*schema.*|.*additionalProperties.*|.*required property.*"
+      },
+      {
+        "name": "Environment problem",
+        "matchedStatuses": ["broken", "failed"],
+        "messageRegex": ".*Connection refused.*|.*No such host.*|.*502.*|.*503.*|.*TaskCanceledException.*"
+      },
+      {
+        "name": "Missing configuration",
+        "matchedStatuses": ["broken"],
+        "messageRegex": ".*Configuration is incomplete.*|.*needs a credential that is not configured.*"
+      },
+      {
+        "name": "Quarantined",
+        "matchedStatuses": ["skipped"]
+      }
+    ]
+  }
+}

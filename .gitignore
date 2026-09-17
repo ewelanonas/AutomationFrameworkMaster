@@ -43,6 +43,22 @@ storage-state.json
 *.har
 TestResults/
 
+# The JUnit logger writes next to the test project, not into the results
+# directory, whatever --results-directory says.
+junit.xml
+junit*.xml
+
+# Scratch logs from local run captures
+*.tmp.txt
+full.log
+rep.log
+fail.log
+one.log
+ui-run.log
+signin.log
+probe-out.log
+*-err.log
+
 # ---------------------------------------------------------------------------
 # .NET
 # ---------------------------------------------------------------------------
