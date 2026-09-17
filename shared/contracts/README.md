@@ -48,3 +48,27 @@ Two things a real project should take from this:
 Product ids are **ULIDs** (26-character Crockford base32), not UUIDs or
 integers. The schema enforces that, which catches a whole class of bad test
 data early.
+
+### The detail response is not the list response
+
+`GET /products/{id}` returns everything a list item has **plus** a `specs`
+array. `GET /products` omits `specs` entirely.
+
+`toolshop-product.schema.json` therefore lists `specs` as optional rather than
+required, so one schema covers both representations. The alternative — two
+schemas — duplicates every other field and guarantees they drift apart.
+
+This is worth reading as a worked example: the first version of this schema was
+derived from the list response alone, so it did not know `specs` existed. The
+contract test against `GET /products/{id}` failed on
+`additionalProperties: false`, which is precisely the job that setting does.
+The schema was wrong, not the test.
+
+### The demo data is reseeded periodically
+
+Product ids are **not stable**. A set of ids captured one hour was returning
+404 the next.
+
+Tests must therefore fetch an id from the catalogue and use that, never
+hardcode one. Every test here does, which is why the reseed showed up as a
+schema gap rather than as a wall of 404s.

@@ -57,6 +57,22 @@
         "name": { "type": "string", "minLength": 1 },
         "slug": { "type": ["string", "null"] }
       }
+    },
+    "specs": {
+      "description": "Present only on GET /products/{id}. The list endpoint omits it entirely, which is why it is optional rather than required — one schema then covers both representations.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "product_id", "spec_name", "spec_value"],
+        "properties": {
+          "id": { "$ref": "#/$defs/ulid" },
+          "product_id": { "$ref": "#/$defs/ulid" },
+          "spec_name": { "type": "string", "minLength": 1 },
+          "spec_value": { "type": ["string", "number", "null"] },
+          "spec_unit": { "type": ["string", "null"] }
+        }
+      }
     }
   },
   "$defs": {

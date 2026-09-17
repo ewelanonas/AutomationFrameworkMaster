@@ -24,6 +24,11 @@ local.settings.json
 .kiro/settings/mcp.json
 
 # ---------------------------------------------------------------------------
+# Playwright MCP scratch output (page snapshots, console logs from exploration)
+# ---------------------------------------------------------------------------
+.playwright-mcp/
+
+# ---------------------------------------------------------------------------
 # Test output — regenerated every run
 # ---------------------------------------------------------------------------
 reports/
