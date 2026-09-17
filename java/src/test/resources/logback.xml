@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+  <!--
+    The MDC keys are the point of this pattern. With parallel execution, lines
+    from several tests interleave into one stream, and without a per-test marker
+    on every line that stream is unreadable exactly when it matters.
+
+    MdcExtension populates testName and runId; it also clears them, so a leaked
+    value cannot be attributed to the wrong test.
+  -->
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} %-5level [%X{runId:-no-run}] [%X{testName:-setup}] %logger{28} - %msg%n</pattern>
+      <charset>UTF-8</charset>
+    </encoder>
+  </appender>
+
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+
+  <!-- Framework logging: INFO shows the request line and business actions. -->
+  <logger name="com.company.automation" level="INFO"/>
+
+  <!--
+    Third-party HTTP logging is silenced on purpose. Apache HttpClient at DEBUG
+    prints full header blocks, which is both unreadable and a way for an
+    Authorization header to reach a CI log unredacted. Request and response
+    detail comes from RedactingApiLogFilter instead, which redacts first.
+  -->
+  <logger name="org.apache.http" level="WARN"/>
+  <logger name="org.apache.hc" level="WARN"/>
+  <logger name="io.restassured" level="WARN"/>
+
+</configuration>

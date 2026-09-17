@@ -1,0 +1,31 @@
+[
+  {
+    "name": "Product defect",
+    "matchedStatuses": ["failed"],
+    "messageRegex": ".*AssertionError.*|.*expected.*but was.*"
+  },
+  {
+    "name": "Test defect",
+    "matchedStatuses": ["broken"],
+    "messageRegex": ".*NullPointerException.*|.*TimeoutError.*waiting for locator.*|.*IllegalStateException.*"
+  },
+  {
+    "name": "Contract drift",
+    "matchedStatuses": ["failed"],
+    "messageRegex": ".*schema.*|.*additionalProperties.*|.*required property.*"
+  },
+  {
+    "name": "Environment problem",
+    "matchedStatuses": ["broken", "failed"],
+    "messageRegex": ".*Connection refused.*|.*UnknownHost.*|.*502.*|.*503.*|.*SocketTimeout.*"
+  },
+  {
+    "name": "Missing configuration",
+    "matchedStatuses": ["broken"],
+    "messageRegex": ".*Configuration is incomplete.*|.*needs a credential that is not configured.*"
+  },
+  {
+    "name": "Quarantined",
+    "matchedStatuses": ["skipped"]
+  }
+]
