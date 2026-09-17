@@ -5,8 +5,10 @@ fileMatchPattern: ["java/**", "**/*.java", "**/pom.xml", "**/build.gradle", "**/
 
 # Java Automation Conventions
 
-Stack: JDK 21, Maven, JUnit 5 (Jupiter), Playwright for Java, REST Assured,
+Stack: JDK 17, Maven, JUnit 5 (Jupiter), Playwright for Java, REST Assured,
 AssertJ, Jackson, Datafaker, Allure, Testcontainers, SLF4J + Logback.
+
+JDK 17 rather than 21 — see `docs/decisions/0001-target-jdk-17.md`.
 
 ## Project layout
 
@@ -27,7 +29,7 @@ java/
 
 ## Build configuration
 
-- Java 21, `maven.compiler.release=21`.
+- Java 17, `maven.compiler.release=17`.
 - Manage every version in `<dependencyManagement>` with BOMs
   (junit-bom, playwright, allure-bom). No version literals in `<dependencies>`.
 - Surefire configured for parallel execution and Allure's AspectJ weaver.

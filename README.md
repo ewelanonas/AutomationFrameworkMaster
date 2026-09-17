@@ -41,8 +41,10 @@ and run [workflow 1](#1-bootstrap-a-new-module) to bootstrap the module.
 | `.kiro/skills/` — 8 skills | Ready |
 | `docs/mcp/` + MCP config template | Ready |
 | `.env.example`, `.gitignore` | Ready |
+| `shared/environments/`, `shared/contracts/` | Ready — [demo target](#the-demo-target) |
+| `docs/decisions/` | Ready — 1 ADR |
 | `csharp/` `java/` `python/` `typescript/` | See [branching model](#branching-model) |
-| `shared/`, `docs/decisions/`, `.github/workflows/` | Not created |
+| `.github/workflows/` | Not created |
 
 ## Branching model
 
@@ -290,7 +292,7 @@ silently in parallel. Also: LINQ. Keep it out of tests.
 
 ### Java
 
-**Stack:** JDK 21 · Maven · JUnit 5 · Playwright for Java · REST Assured ·
+**Stack:** JDK 17 · Maven · JUnit 5 · Playwright for Java · REST Assured ·
 AssertJ · Jackson · Datafaker · Allure · Testcontainers · SLF4J + Logback
 
 ```text
@@ -416,12 +418,38 @@ Install only what you need for your module.
 | Tool | For | Check |
 | --- | --- | --- |
 | .NET 8 SDK | csharp | `dotnet --version` |
-| JDK 21 + Maven | java | `java -version` ; `mvn -v` |
+| JDK 17 + Maven | java | `java -version` ; `mvn -v` |
 | Python 3.12 + uv | python | `uv --version` |
 | Node 22 + pnpm | typescript | `node -v` ; `pnpm -v` |
 | Docker Desktop | Testcontainers, GitHub MCP | `docker info` |
 
 `uv`: https://docs.astral.sh/uv/getting-started/installation/
+
+### The demo target
+
+The modules run against the **Toolshop** demo application, a public sandbox
+with a matching REST API — so the suites work out of the box with no local app
+to stand up.
+
+| | |
+| --- | --- |
+| UI | https://practicesoftwaretesting.com |
+| API | https://api.practicesoftwaretesting.com |
+| Auth | email + password → JWT from `POST /users/login` |
+| Source | [testsmith-io/practice-software-testing](https://github.com/testsmith-io/practice-software-testing) |
+
+It was chosen because it exercises the architecture properly rather than just
+proving a browser opens: a real paginated API for seeding and contract tests, a
+JWT flow, nested response objects, and a UI worth writing page objects for.
+
+The schemas in `shared/contracts/` were **derived from live responses**, not
+from a published spec — every field and status code was observed directly. See
+[`shared/contracts/README.md`](shared/contracts/README.md), which also documents
+two genuine inconsistencies in the demo API that the tests assert as-is rather
+than tidying up.
+
+To point a module at your own application instead, change
+`shared/environments/local.json` or set `AF_UI_BASEURL` / `AF_API_BASEURL`.
 
 ### Environment
 

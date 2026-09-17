@@ -11,7 +11,7 @@ job that already has one here without an ADR in `docs/decisions/`.
 
 | Concern            | C# / .NET                        | Java                          | Python                     | TypeScript                  |
 | ------------------ | -------------------------------- | ----------------------------- | -------------------------- | --------------------------- |
-| Runtime            | .NET 8 (LTS)                     | JDK 21 (LTS)                  | CPython 3.12               | Node.js 22 (LTS)            |
+| Runtime            | .NET 8 (LTS)                     | JDK 17 (LTS)                  | CPython 3.12               | Node.js 22 (LTS)            |
 | Build / deps       | `dotnet` + NuGet, central pkg mgmt | Maven                       | `uv` + `pyproject.toml`    | `pnpm`                      |
 | Test runner        | NUnit 4                          | JUnit 5 (Jupiter)             | pytest 8                   | Playwright Test             |
 | UI driver          | Playwright for .NET              | Playwright for Java           | Playwright for Python      | Playwright                  |

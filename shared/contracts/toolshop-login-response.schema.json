@@ -1,0 +1,16 @@
+{
+  "title": "Toolshop login success response",
+  "description": "JSON Schema draft 2020-12. Derived from a live response of POST https://api.practicesoftwaretesting.com/users/login on 2026-09-17.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["access_token", "token_type", "expires_in"],
+  "properties": {
+    "access_token": {
+      "type": "string",
+      "description": "JWT. Never log or attach this value — route it through the redaction helper.",
+      "pattern": "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+    },
+    "token_type": { "type": "string", "enum": ["bearer", "Bearer"] },
+    "expires_in": { "type": "integer", "exclusiveMinimum": 0 }
+  }
+}

@@ -53,7 +53,7 @@ Exclude quarantine everywhere: `--filter Category!=Quarantine`,
 
 - Pin the runner image by tag or digest. Never `latest`.
 - Pin toolchain versions in the workflow (`dotnet-version: 8.0.x`,
-  `java-version: 21`, `python-version: 3.12`, `node-version: 22`).
+  `java-version: 17`, `python-version: 3.12`, `node-version: 22`).
 - Install browsers with the matching Playwright version and `--with-deps`.
   A mismatched browser install is the most common CI-only failure.
 - Cache: NuGet packages, `~/.m2`, uv cache, pnpm store, and the Playwright

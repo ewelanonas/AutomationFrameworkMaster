@@ -1,0 +1,28 @@
+{
+  "name": "local",
+  "description": "Toolshop demo application (practicesoftwaretesting.com). Public sandbox, no local instance required. Non-secret values only — credentials come from AF_* environment variables.",
+  "ui": {
+    "baseUrl": "https://practicesoftwaretesting.com",
+    "locale": "en-US",
+    "timezoneId": "UTC",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    }
+  },
+  "api": {
+    "baseUrl": "https://api.practicesoftwaretesting.com",
+    "loginPath": "/users/login"
+  },
+  "timeouts": {
+    "elementMs": 10000,
+    "navigationMs": 30000,
+    "apiMs": 30000,
+    "workflowMs": 60000
+  },
+  "execution": {
+    "headless": true,
+    "browser": "chromium",
+    "testIdAttribute": "data-test"
+  }
+}

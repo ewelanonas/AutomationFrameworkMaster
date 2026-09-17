@@ -36,7 +36,7 @@ the others. Use `fail-fast: false`.
 ## Step 3 — Pin everything
 
 - Runner image by tag or digest, never `latest`.
-- Toolchain versions explicit: `dotnet-version: 8.0.x`, `java-version: 21`,
+- Toolchain versions explicit: `dotnet-version: 8.0.x`, `java-version: 17`,
   `python-version: 3.12`, `node-version: 22`.
 - Lock files with `--frozen-lockfile` / `--locked` / `-Dmaven.repo.local` cache
   restore. A CI run that resolves a floating version is not reproducible.

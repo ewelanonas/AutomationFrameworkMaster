@@ -1,0 +1,19 @@
+{
+  "title": "Toolshop paginated product list",
+  "description": "JSON Schema draft 2020-12. Derived from live responses of GET https://api.practicesoftwaretesting.com/products?page=1 on 2026-09-17.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["current_page", "data", "last_page", "per_page", "total"],
+  "properties": {
+    "current_page": { "type": "integer", "minimum": 1 },
+    "data": {
+      "type": "array",
+      "items": { "$ref": "toolshop-product.schema.json" }
+    },
+    "from": { "type": ["integer", "null"], "minimum": 1 },
+    "to": { "type": ["integer", "null"], "minimum": 1 },
+    "last_page": { "type": "integer", "minimum": 1 },
+    "per_page": { "type": "integer", "minimum": 1 },
+    "total": { "type": "integer", "minimum": 0 }
+  }
+}

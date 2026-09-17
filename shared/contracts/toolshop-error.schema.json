@@ -1,0 +1,15 @@
+{
+  "title": "Toolshop error response",
+  "description": "JSON Schema draft 2020-12. The demo API is inconsistent: some endpoints return {message}, others {error}. This schema accepts either but requires exactly one, so a response with both or neither still fails. Derived from live 401 and 404 responses on 2026-09-17.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "message": { "type": "string", "minLength": 1 },
+    "error": { "type": "string", "minLength": 1 },
+    "errors": { "type": "object" }
+  },
+  "oneOf": [
+    { "required": ["message"], "not": { "required": ["error"] } },
+    { "required": ["error"], "not": { "required": ["message"] } }
+  ]
+}
