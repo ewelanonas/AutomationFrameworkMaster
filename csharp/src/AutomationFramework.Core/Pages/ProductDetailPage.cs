@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using AutomationFramework.Core.Support;
 using Microsoft.Playwright;
 

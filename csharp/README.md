@@ -268,7 +268,16 @@ Get-Process testhost -ErrorAction SilentlyContinue | Stop-Process -Force
 ```
 
 **Do not edit source with shell text pipelines.** A `Get-Content | .Replace | Set-Content`
-one-liner emptied `AuthFlow.cs` during this build. Use an editor.
+one-liner emptied `AuthFlow.cs` during this build. The same habit also left a UTF-8
+BOM on nine files — PowerShell's `Set-Content -Encoding UTF8` writes one — which
+`dotnet format` rejects as `error CHARSET`. Use an editor.
+
+**`dotnet format --verify-no-changes` is a real gate, not a formality.** Wiring it
+into CI found 49 problems on a module that built and tested clean: the nine BOMs
+above, and 40 `IDE1006` violations caused by an over-broad naming rule in
+`.editorconfig` that claimed `const` and `static readonly` fields, whose PascalCase
+names were correct all along. .NET applies the **first** matching naming rule, so
+specific rules have to be declared before general ones.
 
 ---
 

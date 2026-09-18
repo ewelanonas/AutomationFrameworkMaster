@@ -1,4 +1,4 @@
-﻿using AutomationFramework.Core.Support;
+using AutomationFramework.Core.Support;
 using Microsoft.Playwright;
 
 namespace AutomationFramework.Core.Pages;

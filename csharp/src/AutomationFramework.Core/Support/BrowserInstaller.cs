@@ -1,4 +1,4 @@
-﻿namespace AutomationFramework.Core.Support;
+namespace AutomationFramework.Core.Support;
 
 /// <summary>
 /// Installs Playwright's browser binaries from inside the process.

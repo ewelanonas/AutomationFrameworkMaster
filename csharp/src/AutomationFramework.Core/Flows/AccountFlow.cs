@@ -1,4 +1,4 @@
-﻿using Allure.Net.Commons;
+using Allure.Net.Commons;
 using AutomationFramework.Core.Clients;
 using AutomationFramework.Core.Models;
 using AutomationFramework.Core.Support;
