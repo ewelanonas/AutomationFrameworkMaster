@@ -1,0 +1,54 @@
+<Project>
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <!--
+    Every version lives here and nowhere else. A version literal in a .csproj is
+    how two projects end up on different builds of the same library.
+
+    Versions were resolved against nuget.org rather than guessed.
+  -->
+  <ItemGroup>
+    <!-- Test platform -->
+    <PackageVersion Include="NUnit" Version="4.6.1" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="5.2.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+
+    <!-- UI -->
+    <PackageVersion Include="Microsoft.Playwright" Version="1.62.0" />
+    <PackageVersion Include="Microsoft.Playwright.NUnit" Version="1.62.0" />
+
+    <!--
+      Assertions: AwesomeAssertions, not FluentAssertions.
+
+      FluentAssertions 8.0 moved from Apache-2.0 to a commercial licence that
+      requires a paid seat for commercial use. Version 7.x stays Apache-2.0 but
+      is frozen to bugfixes. AwesomeAssertions is the MIT community fork of 7.x
+      with a compatible API, so this is a package swap rather than a rewrite in
+      either direction.
+
+      See docs/decisions/0002-assertion-library-licensing.md.
+    -->
+    <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />
+
+    <!-- Contract validation, draft 2020-12 -->
+    <PackageVersion Include="JsonSchema.Net" Version="9.4.0" />
+
+    <!-- Test data -->
+    <PackageVersion Include="Bogus" Version="35.6.5" />
+
+    <!-- Configuration -->
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="8.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.2" />
+
+    <!-- Reporting -->
+    <PackageVersion Include="Allure.NUnit" Version="2.15.0" />
+    <PackageVersion Include="Allure.Net.Commons" Version="2.15.0" />
+    <PackageVersion Include="JunitXml.TestLogger" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>

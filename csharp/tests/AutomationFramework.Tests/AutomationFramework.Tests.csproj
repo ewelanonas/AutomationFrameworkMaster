@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AutomationFramework.Tests</RootNamespace>
+    <AssemblyName>AutomationFramework.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Microsoft.Playwright.NUnit" />
+    <PackageReference Include="AwesomeAssertions" />
+    <PackageReference Include="Allure.NUnit" />
+    <PackageReference Include="JunitXml.TestLogger" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AutomationFramework.Core\AutomationFramework.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="allureConfig.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

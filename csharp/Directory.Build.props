@@ -1,0 +1,30 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>false</InvariantGlobalization>
+
+    <!--
+      Warnings are errors. A test suite that builds with warnings accumulates
+      them until nobody reads the build output, and the one warning that
+      mattered scrolls past unnoticed.
+    -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <!-- Nothing here ships as a package. -->
+    <IsPackable>false</IsPackable>
+
+    <!-- Deterministic restores. packages.lock.json is committed. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+
+    <!-- UTC everywhere so date formatting and assertions are deterministic. -->
+    <NoWarn>$(NoWarn);NU1507</NoWarn>
+  </PropertyGroup>
+
+</Project>

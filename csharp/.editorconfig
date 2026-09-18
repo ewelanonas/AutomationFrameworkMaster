@@ -1,0 +1,106 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+[*.{cs,csproj,props,targets,json}]
+indent_size = 4
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+[*.cs]
+# Language conventions
+# var style is a suggestion, not a build failure. The house rule ("explicit type
+# where the type is not obvious from the right-hand side") is a judgement call a
+# reviewer makes better than an analyzer, and warnings are errors here.
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:suggestion
+csharp_new_line_before_open_brace = all
+csharp_prefer_braces = true:warning
+dotnet_sort_system_directives_first = true
+csharp_using_directive_placement = outside_namespace:warning
+csharp_style_namespace_declarations = file_scoped:warning
+
+# ---------------------------------------------------------------------------
+# Naming
+#
+# The specific rules come first: .NET applies the first matching rule, so a
+# broad "all private fields are _camelCase" rule placed above these would claim
+# constants and static readonly fields too. That is what the first version of
+# this file did, and `dotnet format --verify-no-changes` produced 40 IDE1006
+# violations for fields whose PascalCase names were correct all along.
+# ---------------------------------------------------------------------------
+
+# const fields: PascalCase, whatever their accessibility.
+dotnet_naming_rule.constants_pascal.severity = warning
+dotnet_naming_rule.constants_pascal.symbols = constant_fields
+dotnet_naming_rule.constants_pascal.style = pascal
+dotnet_naming_symbols.constant_fields.applicable_kinds = field
+dotnet_naming_symbols.constant_fields.applicable_accessibilities = *
+dotnet_naming_symbols.constant_fields.required_modifiers = const
+
+# static readonly fields: PascalCase.
+dotnet_naming_rule.static_readonly_pascal.severity = warning
+dotnet_naming_rule.static_readonly_pascal.symbols = static_readonly_fields
+dotnet_naming_rule.static_readonly_pascal.style = pascal
+dotnet_naming_symbols.static_readonly_fields.applicable_kinds = field
+dotnet_naming_symbols.static_readonly_fields.applicable_accessibilities = *
+dotnet_naming_symbols.static_readonly_fields.required_modifiers = static, readonly
+
+# Everything else that is a private field: _camelCase.
+dotnet_naming_rule.private_fields_underscore.severity = warning
+dotnet_naming_rule.private_fields_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore.style = underscore_camel
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+
+dotnet_naming_style.underscore_camel.required_prefix = _
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+dotnet_naming_style.pascal.capitalization = pascal_case
+
+# ---------------------------------------------------------------------------
+# Rules raised to error, because each one has caused a real problem in test code
+# ---------------------------------------------------------------------------
+
+# Missing await. The single largest source of flake in async test code: the test
+# passes because it never waited for the thing it was asserting.
+dotnet_diagnostic.CS4014.severity = error
+dotnet_diagnostic.CS1998.severity = error
+
+# Do not use blocking waits on async code (.Result, .Wait()).
+dotnet_diagnostic.CA1849.severity = error
+
+# Dispose what you create. A leaked IBrowserContext leaks a browser process.
+dotnet_diagnostic.CA2000.severity = error
+
+# Use ordinal string comparison rather than culture-sensitive by accident.
+dotnet_diagnostic.CA1310.severity = error
+
+# ---------------------------------------------------------------------------
+# Rules turned off with a reason. Silence without a reason is how a real rule
+# gets disabled by accident.
+# ---------------------------------------------------------------------------
+
+# CA1707: underscores in member names. Test method naming here is
+# Should<Outcome>_When<Condition>, which is deliberate and readable in reports.
+dotnet_diagnostic.CA1707.severity = none
+
+# CA1054/CA1056: URI parameters as string. The config layer carries base URLs as
+# strings because that is what Playwright and HttpClient both accept.
+dotnet_diagnostic.CA1054.severity = none
+dotnet_diagnostic.CA1056.severity = none
+
+# CA1062: null checks on public parameters. This is internal test tooling, not a
+# published library with untrusted callers.
+dotnet_diagnostic.CA1062.severity = none
+
+[tests/**/*.cs]
+# CA1515: types can be internal. Test fixtures are discovered by reflection and
+# are conventionally public.
+dotnet_diagnostic.CA1515.severity = none
