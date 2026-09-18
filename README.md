@@ -24,6 +24,7 @@ See [Working with Kiro](#working-with-kiro).
   - [Python](#python)
   - [TypeScript](#typescript)
 - [Setup](#setup)
+- [CI](#ci)
 - [Working with Kiro](#working-with-kiro)
 - [Definition of done](#definition-of-done)
 
@@ -50,11 +51,11 @@ dotnet test csharp/AutomationFramework.sln     # 34 tests, ~12s
 | `docs/mcp/` + MCP config template | Ready |
 | `.env.example`, `.gitignore` | Ready |
 | `shared/environments/`, `shared/contracts/` | Ready — [demo target](#the-demo-target) |
-| `docs/decisions/` | Ready — 3 ADRs |
+| `docs/decisions/` | Ready — 4 ADRs |
 | `java/` on `framework/java` | Ready — 33 tests |
 | `csharp/` on `framework/csharp` | Ready — 34 tests |
 | `python/` `typescript/` | Branch not created yet |
-| `.github/workflows/` | Not created |
+| `.github/workflows/ci.yml` | Ready — [see CI](#ci) |
 
 ## Branching model
 
@@ -511,6 +512,74 @@ Enabled with no credentials: **playwright** (live browser + accessibility tree
 **filesystem**.
 
 Full notes, including the security rules, in [`docs/mcp/README.md`](docs/mcp/README.md).
+
+---
+
+## CI
+
+One workflow, `.github/workflows/ci.yml`, lives on `main` and is merged down. It
+works on every branch because a `detect` job looks for each module rather than
+assuming one is present:
+
+| Branch | Jobs that run |
+| --- | --- |
+| `main` | `standards` |
+| `framework/java` | `standards`, `java` |
+| `framework/csharp` | `standards`, `csharp` |
+
+| Trigger | Suite |
+| --- | --- |
+| push, pull request | smoke |
+| nightly schedule | regression |
+| manual dispatch | your choice of smoke, regression or all |
+
+**No secrets are required.** Both suites register their own throwaway accounts, so
+a fork pull request runs the complete gate with nothing injected.
+
+### The `standards` job
+
+The only job with anything to check on `main`, and it guards what every module
+depends on. `\.github/scripts/check_standards.py` validates:
+
+- Steering frontmatter — inclusion mode valid, `auto` carries name and
+  description, `fileMatch` carries a pattern
+- Skill frontmatter — `name` matches its folder, lowercase-hyphen, description
+  within the 1024-char limit
+- Contract schemas parse, and each forbids additional properties at the root
+- Environment descriptors parse and contain no credential-shaped **keys**
+- `.env.example` exists and `.gitignore` covers `.env` but keeps `.env.example`
+- A secret scan for token shapes across the tree
+
+Stdlib only, so it cannot break for reasons unrelated to what it checks. Run it
+yourself:
+
+```powershell
+python .github/scripts/check_standards.py .
+```
+
+### Run summaries
+
+`\.github/scripts/junit_summary.py` turns JUnit XML into a markdown table plus a
+list of failures, written to the run's step summary. No third-party action and no
+write permission on the repository. It also runs locally:
+
+```powershell
+python .github/scripts/junit_summary.py "Java suite" java/target/surefire-reports
+```
+
+### Required check
+
+Branch protection should require the single **`Gate`** job. It treats a skipped
+module job as acceptable — that module is simply not on the branch — and anything
+else, including a cancelled run, as a failure. Adding a module or renaming a job
+then needs no change to the protection rules.
+
+### Why smoke and not the full regression
+
+The suites run against a shared public sandbox, and at four workers our own load
+produced connection resets. See
+[ADR 0004](docs/decisions/0004-ci-runs-smoke-not-regression.md), which also covers
+what to change when you point the suites at an environment you own.
 
 ---
 
