@@ -91,7 +91,7 @@ Conditions:
 - Suite duration p50/p95 and the slowest 10 tests.
 - Quarantine count and oldest quarantine age.
 
-Target: first-attempt pass rate above 99% on a healthy main branch. Below 95%
+Target: first-attempt pass rate above 99% on a healthy trunk. Below 95%
 means the suite is not a gate and should be treated as an incident.
 
 ## What is never an acceptable fix

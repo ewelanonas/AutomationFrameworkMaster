@@ -15,7 +15,7 @@ Fail fast, cheapest first:
 2. build / compile (warnings=errors) < 3 min   every push
 3. contract + API smoke             < 5 min   every push  ← PR gate
 4. UI smoke (chromium, headless)    < 5 min   every push  ← PR gate
-5. full regression (all modules)    < 30 min  merge to main
+5. full regression (all modules)    < 30 min  merge to trunk
 6. cross-browser + a11y + visual    nightly
 7. real third-party integration     nightly, non-gating
 ```
@@ -111,7 +111,7 @@ readable reason gets ignored.
 
 - A failing gating suite blocks merge. No override without a documented
   incident.
-- A new flake detected on main opens a ticket automatically.
+- A new flake detected on the trunk opens a ticket automatically.
 - Never make the test job `continue-on-error` to unblock a release. That
   converts the suite into decoration.
 - Nightly failures have a named rotation owner and a triage SLA of one
@@ -122,12 +122,17 @@ readable reason gets ignored.
 - Path filters may skip a module whose files did not change, but never skip
   contract tests when `shared/contracts/**` changed, and never skip the smoke
   suite on a release branch.
-- Run the full matrix on `main`, on release branches, and on any change to
+- Run the full matrix on the trunk, on release branches, and on any change to
   `.kiro/`, `shared/`, or CI definitions.
 
 ## Branching and release
 
-- Work on feature branches; open a PR. Never push directly to `main` or a
+The trunk in this repository is **`master`**, and it carries every module — see
+`docs/decisions/0005-master-carries-every-module.md`. A product repository copying
+these conventions may well use `main`; where this file says "trunk", read whichever
+applies.
+
+- Work on feature branches; open a PR. Never push directly to the trunk or a
   release branch, and never modify a release branch outside a PR.
 - Suite changes and product changes travel together where possible so the gate
   reflects reality at merge time.

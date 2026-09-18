@@ -32,17 +32,19 @@ See [Working with Kiro](#working-with-kiro).
 
 ## Current state
 
-The standards, the agent setup, and the shared contracts are in place on `main`.
-**The Java and C# modules are built and green.** The other two each get their own
-branch — switch to it and run [workflow 1](#1-bootstrap-a-new-module).
+The standards, the agent setup, and the shared contracts are in place on `master`,
+along with every module built so far. **The Java and C# modules are built and
+green** — both run from a single checkout:
 
 ```powershell
-git switch framework/java
-mvn -f java/pom.xml -B clean test              # 33 tests, ~28s
+git switch master
 
-git switch framework/csharp
+mvn -f java/pom.xml -B clean test              # 33 tests, ~70s
 dotnet test csharp/AutomationFramework.sln     # 34 tests, ~12s
 ```
+
+Python and TypeScript are not built yet. Run
+[workflow 1](#1-bootstrap-a-new-module) on `master` to add one.
 
 | Piece | Status |
 | --- | --- |
@@ -59,88 +61,69 @@ dotnet test csharp/AutomationFramework.sln     # 34 tests, ~12s
 
 ## Branching model
 
-Each language module lives on its own long-lived branch. `main` carries only
-the shared foundation.
+**`master` is the primary branch and carries every module.** Clone it and you have
+the standards, the agent setup, the shared contracts and all the language modules.
 
 ```text
-main                      Standards, skills, docs, shared/ contracts.
-│                         No language module code.
-├── framework/java        main + java/
-├── framework/csharp      main + csharp/
-├── framework/python      main + python/
-└── framework/typescript  main + typescript/
+master                    Everything: .kiro/, docs/, shared/, and every module
+├── framework/java        A single-stack view: master minus the other modules
+└── framework/csharp      A single-stack view
 ```
 
 | Branch | Status |
 | --- | --- |
-| `main` | Ready |
-| `framework/java` | **Ready** — 33 tests green in ~28s. [Module README](https://github.com/ewelanonas/AutomationFrameworkMaster/blob/framework/java/java/README.md) |
-| `framework/csharp` | **Ready** — 34 tests green in ~12s. [Module README](https://github.com/ewelanonas/AutomationFrameworkMaster/blob/framework/csharp/csharp/README.md) |
-| `framework/python` | Not created |
-| `framework/typescript` | Not created |
-
-### Checking out a framework
-
-Clone once, then switch to the stack you need:
+| `master` | **Primary** — the shared foundation plus every module |
+| `framework/java` | Single-stack view — 33 tests green in ~70s |
+| `framework/csharp` | Single-stack view — 34 tests green in ~12s |
+| `main` | Superseded by `master`. Kept until the switch settles. |
 
 ```powershell
 git clone https://github.com/ewelanonas/AutomationFrameworkMaster.git
-cd AutomationFrameworkMaster
-git switch framework/java
+cd AutomationFrameworkMaster            # you are on master, with everything
 ```
 
-Already cloned:
+Only want one stack? The `framework/*` branches are per-language views, or just
+delete the folders you will not run:
 
 ```powershell
-git fetch origin
-git switch framework/java
+git switch framework/java               # java/ only
 ```
 
-Every framework branch contains the full `.kiro/` setup, so the agent applies
-the same standards no matter which one you are on.
+### Why one branch, having started with several
 
-### The one rule that keeps this working
+The modules originally lived on separate branches so a team could clone only what
+they needed. Two things changed that, and both are worth knowing because they are
+the argument for the current shape:
 
-**Shared changes go to `main` first, then merge down. Never the reverse.**
+**The merge-down chore was real and the isolation was not worth it.** Every change
+to `.kiro/`, `docs/`, `shared/` or the CI workflow had to land on `main` and then be
+merged into every framework branch — five times in one working session. A team
+wanting only Java can delete three folders, which is cheaper.
 
-```text
-Editing .kiro/, docs/, shared/, README, .gitignore
-    → commit on main → merge main into each framework/* branch
+**Separate branches hid parity breaches.** `product.md` requires that a concept in
+one module exists in all of them under the same name. Two defects were found only
+because the second module was built and compared against the first: the shared
+account that negative sign-in tests locked, which had been in the Java module from
+the start, and a missing NUnit lifecycle setting whose Java counterpart had been
+configured all along. Both would have been obvious with the files side by side.
 
-Editing java/ (or csharp/, python/, typescript/)
-    → commit on that framework branch only
-```
-
-```powershell
-# after a change lands on main, refresh a framework branch
-git switch framework/java
-git merge origin/main
-```
-
-Why this matters, stated plainly: **long-lived parallel branches drift.** If the
-Java branch edits `automation-principles.md` and the Python branch edits it too,
-you get a conflict that nobody wants to resolve, and eventually four different
-sets of standards. Keeping the shared foundation single-sourced on `main` is
-what stops that. It costs one merge per branch when a standard changes, which is
-a fair price.
-
-If you would rather see all four stacks in one working tree — useful when
-changing a standard that affects every module — say so and we can flatten this
-to trunk-based with folder ownership instead. The tradeoff is that a Java
-developer then clones three stacks they will never run.
+Full reasoning in [ADR 0005](docs/decisions/0005-master-carries-every-module.md).
 
 ### Day-to-day work
 
-Do not commit straight to a `framework/*` branch for anything non-trivial.
-Branch off it, then open a PR back into it:
+Branch off `master`, then open a PR back into it:
 
 ```powershell
-git switch framework/java
-git switch -c feat/java-checkout-tests
+git switch master
+git pull
+git switch -c feat/python-module
 # ... work ...
-git push -u origin feat/java-checkout-tests
-gh pr create --base framework/java
+git push -u origin feat/python-module
+gh pr create --base master
 ```
+
+Shared changes and module changes now travel in the same commit when they belong
+together, which is how it should have been.
 
 ## Layout
 
@@ -517,15 +500,18 @@ Full notes, including the security rules, in [`docs/mcp/README.md`](docs/mcp/REA
 
 ## CI
 
-One workflow, `.github/workflows/ci.yml`, lives on `main` and is merged down. It
-works on every branch because a `detect` job looks for each module rather than
-assuming one is present:
+One workflow, `.github/workflows/ci.yml`, serves every branch. A `detect` job looks
+for each module rather than assuming which ones are present:
 
 | Branch | Jobs that run |
 | --- | --- |
-| `main` | `standards` |
+| `master` | `standards`, `java`, `csharp` |
 | `framework/java` | `standards`, `java` |
 | `framework/csharp` | `standards`, `csharp` |
+
+That detection was written when each module lived on its own branch, and it needed
+no change when they were consolidated onto `master`. Detecting what is present
+rather than mapping branches to modules is what made the restructure cheap.
 
 | Trigger | Suite |
 | --- | --- |
@@ -536,10 +522,22 @@ assuming one is present:
 **No secrets are required.** Both suites register their own throwaway accounts, so
 a fork pull request runs the complete gate with nothing injected.
 
+**The two module jobs queue rather than run together.** They share one job-level
+concurrency group scoped to the run, because they also share one public demo
+target. At four concurrent workers the C# suite already drew connection resets and
+SSL failures out of that sandbox, caused entirely by our own load; two suites at
+once is the same mistake at a larger scale. This roughly doubles gate time on
+`master`, which is the price of not being the reason the target falls over.
+
+Worth knowing why this is not `needs: [java]` on the C# job: that would also
+serialise them, but it would **skip** C# whenever Java failed, and you would lose
+the C# result exactly when you most want to know whether the breakage is
+cross-module.
+
 ### The `standards` job
 
-The only job with anything to check on `main`, and it guards what every module
-depends on. `\.github/scripts/check_standards.py` validates:
+It guards what every module depends on, and it is the only job that runs on a
+branch carrying no module at all. `\.github/scripts/check_standards.py` validates:
 
 - Steering frontmatter — inclusion mode valid, `auto` carries name and
   description, `fileMatch` carries a pattern
@@ -810,7 +808,7 @@ by running.
 Create a <GitHub Actions> workflow that runs all four modules.
 
 Gate on lint, build, contract + API smoke, and UI smoke, under 15 minutes
-total. Full regression on main. Cross-browser and a11y nightly.
+total. Full regression on master. Cross-browser and a11y nightly.
 ```
 
 For a CI-only failure:

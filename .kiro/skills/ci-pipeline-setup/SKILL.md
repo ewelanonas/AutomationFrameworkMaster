@@ -25,7 +25,7 @@ build (warnings as errors)
 contract + API smoke        ← required
 UI smoke (chromium headless) ← required
 ─────────── merge allowed ───────────
-full regression (all modules)        on main
+full regression (all modules)        on trunk
 cross-browser + a11y + visual        nightly
 real integration (non-gating)        nightly
 ```

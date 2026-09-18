@@ -1,27 +1,29 @@
 name: CI
 
-# One workflow for every branch, including the per-language ones.
+# One workflow for every branch.
 #
-# The language modules live on separate branches (framework/java, framework/csharp),
-# so this file cannot assume any of them is present. The `detect` job looks for each
-# module and the module jobs are gated on that, which means:
+# `master` carries every module. The `framework/*` branches remain as per-language
+# views, so this file cannot assume which modules are present. The `detect` job looks
+# for each one and the module jobs are gated on what it finds:
 #
-#   on main             -> only `standards` runs, because no module exists there
+#   on master           -> `standards` + `java` + `csharp`
 #   on framework/java   -> `standards` + `java`
 #   on framework/csharp -> `standards` + `csharp`
 #
-# One file, merged down from main, behaving correctly on each branch. Per-branch
-# workflow files would drift, which is exactly what the branching model exists to
-# prevent.
+# That detection was written when the modules lived only on separate branches. It
+# needed no change when they were consolidated onto master, which is the argument for
+# detecting what is present rather than hardcoding a branch-to-module map.
 #
 # No secrets are required. Both suites register their own throwaway accounts over the
 # API, so a fork pull request runs the full gate with nothing injected.
 
 on:
   push:
-    branches: [main, 'framework/**']
+    # `main` stays listed while the move to `master` settles. Drop it once `main` is
+    # gone.
+    branches: [master, main, 'framework/**']
   pull_request:
-    branches: [main, 'framework/**']
+    branches: [master, main, 'framework/**']
   workflow_dispatch:
     inputs:
       suite:
@@ -145,6 +147,17 @@ jobs:
     if: needs.detect.outputs.java == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    # Both suites share one public demo target, and on master both now run in the same
+    # workflow run. A shared job-level concurrency group makes them queue instead of
+    # hitting it together: at four concurrent workers the C# suite already drew
+    # ERR_CONNECTION_RESET and SSL failures from the far end, caused entirely by our
+    # own load, and two suites at once is the same mistake at a larger scale.
+    #
+    # Scoped to the run, so branches do not block each other. `needs:` would also
+    # serialise them, but it would skip C# whenever Java failed and lose that result.
+    concurrency:
+      group: demo-target-${{ github.run_id }}
+      cancel-in-progress: false
     steps:
       - name: Check out
         uses: actions/checkout@v7
@@ -237,6 +250,10 @@ jobs:
     if: needs.detect.outputs.csharp == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    # Same group as the Java job. See the comment there for why.
+    concurrency:
+      group: demo-target-${{ github.run_id }}
+      cancel-in-progress: false
     steps:
       - name: Check out
         uses: actions/checkout@v7

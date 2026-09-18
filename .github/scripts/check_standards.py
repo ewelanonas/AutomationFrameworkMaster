@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Gate the shared foundation: steering frontmatter, contract schemas, and secrets.
 
-This runs on every branch, including `main` where no language module exists. It is the
-only job that has something to check there, and it guards the files every module
-depends on.
+This runs on every branch, including one carrying no language module, where it is the
+only job with anything to check. It guards the files every module depends on.
 
 Deliberately stdlib only. A gate that needs its own dependency tree installed is a
 gate that eventually breaks for reasons unrelated to what it checks.

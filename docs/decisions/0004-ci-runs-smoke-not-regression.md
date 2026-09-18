@@ -1,8 +1,17 @@
 # 0004 — CI gates on smoke, and one workflow serves every branch
 
-- **Status:** Accepted
+- **Status:** Accepted. Partly superseded by
+  [ADR 0005](0005-master-carries-every-module.md).
 - **Date:** 2026-09-17
 - **Applies to:** `.github/workflows/ci.yml`
+
+> **Note added 2026-09-17.** The branch layout described below changed the same
+> day: `master` now carries every module, so both module jobs run on it. The
+> smoke-on-pull-request and regression-nightly decision, which is what this ADR is
+> actually about, is unchanged. The `detect` job also survived untouched — it looks
+> for module directories rather than mapping branches to modules, which is the part
+> of this design that earned its keep. The branch-layout text is left as written
+> rather than edited, because an ADR records what was decided at the time.
 
 ## Context
 
