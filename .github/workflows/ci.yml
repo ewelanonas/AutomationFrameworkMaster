@@ -1,0 +1,372 @@
+name: CI
+
+# One workflow for every branch, including the per-language ones.
+#
+# The language modules live on separate branches (framework/java, framework/csharp),
+# so this file cannot assume any of them is present. The `detect` job looks for each
+# module and the module jobs are gated on that, which means:
+#
+#   on main             -> only `standards` runs, because no module exists there
+#   on framework/java   -> `standards` + `java`
+#   on framework/csharp -> `standards` + `csharp`
+#
+# One file, merged down from main, behaving correctly on each branch. Per-branch
+# workflow files would drift, which is exactly what the branching model exists to
+# prevent.
+#
+# No secrets are required. Both suites register their own throwaway accounts over the
+# API, so a fork pull request runs the full gate with nothing injected.
+
+on:
+  push:
+    branches: [main, 'framework/**']
+  pull_request:
+    branches: [main, 'framework/**']
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Which suite to run
+        type: choice
+        default: smoke
+        options:
+          - smoke
+          - regression
+          - all
+  schedule:
+    # Nightly. Off the hour to avoid the scheduling stampede on shared runners.
+    - cron: '17 2 * * *'
+
+# Supersede in-flight runs for the same ref. Without this, pushing twice in a minute
+# has two runs competing for the same shared demo target and both flake.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege. Nothing here writes to the repository; the run summary is written
+# to the step summary, which needs no permission at all. A PR comment would need
+# pull-requests: write, and that is a deliberate trade not made here.
+permissions:
+  contents: read
+
+env:
+  # Deterministic date and number formatting, matching the suites' own config.
+  TZ: UTC
+  # Browsers are installed explicitly with their OS dependencies in each job, so the
+  # C# module's in-process installer should not repeat the work.
+  AF_SKIP_BROWSER_INSTALL: 'true'
+  CI: 'true'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Runs everywhere. On main it is the only job with anything to check, and it
+  # guards the files every module depends on.
+  # ---------------------------------------------------------------------------
+  standards:
+    name: Standards and secrets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Validate steering, skills, contracts and scan for secrets
+        run: python3 .github/scripts/check_standards.py .
+
+  detect:
+    name: Detect modules
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      java: ${{ steps.modules.outputs.java }}
+      csharp: ${{ steps.modules.outputs.csharp }}
+      suite: ${{ steps.suite.outputs.suite }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Which modules are on this branch
+        id: modules
+        run: |
+          set -euo pipefail
+          if [ -f java/pom.xml ]; then
+            echo "java=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "java=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -f csharp/AutomationFramework.sln ]; then
+            echo "csharp=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "csharp=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Which suite to run
+        id: suite
+        env:
+          REQUESTED: ${{ inputs.suite }}
+          TRIGGER: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          # Smoke on every push and pull request: the gate has to be fast enough that
+          # people wait for it. Breadth belongs in the nightly run.
+          if [ "$TRIGGER" = "workflow_dispatch" ]; then
+            SUITE="$REQUESTED"
+          elif [ "$TRIGGER" = "schedule" ]; then
+            SUITE="regression"
+          else
+            SUITE="smoke"
+          fi
+          echo "suite=$SUITE" >> "$GITHUB_OUTPUT"
+          echo "Selected suite: $SUITE"
+
+      - name: Report what was detected
+        run: |
+          {
+            echo "## Run plan"
+            echo ""
+            echo "| Item | Value |"
+            echo "| --- | --- |"
+            echo "| Trigger | ${{ github.event_name }} |"
+            echo "| Suite | ${{ steps.suite.outputs.suite }} |"
+            echo "| Java module present | ${{ steps.modules.outputs.java }} |"
+            echo "| C# module present | ${{ steps.modules.outputs.csharp }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Java. Only on a branch that carries java/.
+  # ---------------------------------------------------------------------------
+  java:
+    name: Java suite
+    needs: [standards, detect]
+    if: needs.detect.outputs.java == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Check formatting
+        run: mvn -f java/pom.xml -B --no-transfer-progress spotless:check
+
+      - name: Compile
+        run: mvn -f java/pom.xml -B --no-transfer-progress -DskipTests test-compile
+
+      # Keyed on the Playwright version, not just the POM hash. The browser build is
+      # tied to the library version, and a cache that restores a mismatched browser is
+      # the most common CI-only Playwright failure.
+      - name: Resolve the Playwright version
+        id: playwright
+        run: |
+          set -euo pipefail
+          VERSION=$(mvn -f java/pom.xml -B -q --no-transfer-progress \
+            help:evaluate -Dexpression=playwright.version -DforceStdout)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Playwright for Java: $VERSION"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Chromium and its OS dependencies
+        run: |
+          mvn -f java/pom.xml -B --no-transfer-progress exec:java \
+            -D exec.mainClass=com.microsoft.playwright.CLI \
+            -D exec.args="install --with-deps chromium"
+
+      - name: Run the ${{ needs.detect.outputs.suite }} suite
+        env:
+          SUITE: ${{ needs.detect.outputs.suite }}
+        run: |
+          set -euo pipefail
+          # "all" means everything the POM does not already exclude, which is
+          # quarantine and destructive.
+          if [ "$SUITE" = "all" ]; then
+            mvn -f java/pom.xml -B --no-transfer-progress test
+          else
+            mvn -f java/pom.xml -B --no-transfer-progress test "-Dgroups=$SUITE"
+          fi
+
+      - name: Summarise the results
+        if: always()
+        run: |
+          python3 .github/scripts/junit_summary.py \
+            "Java suite (${{ needs.detect.outputs.suite }})" \
+            java/target/surefire-reports
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: java-reports
+          path: |
+            java/target/surefire-reports/
+            java/target/allure-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      # Traces are large, so they get a shorter retention than the reports and are
+      # only produced on failure in the first place.
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: java-failure-artifacts
+          path: java/target/failure-artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # C#. Only on a branch that carries csharp/.
+  # ---------------------------------------------------------------------------
+  csharp:
+    name: C# suite
+    needs: [standards, detect]
+    if: needs.detect.outputs.csharp == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          # csharp/global.json pins the SDK feature band; this installs a matching one.
+          global-json-file: csharp/global.json
+          cache: true
+          cache-dependency-path: |
+            csharp/**/packages.lock.json
+
+      - name: Restore
+        run: dotnet restore csharp/AutomationFramework.sln --locked-mode
+
+      - name: Check formatting
+        run: dotnet format csharp/AutomationFramework.sln --no-restore --verify-no-changes
+
+      - name: Build
+        run: dotnet build csharp/AutomationFramework.sln --no-restore --configuration Debug
+
+      - name: Resolve the Playwright version
+        id: playwright
+        run: |
+          set -euo pipefail
+          VERSION=$(grep -oPm1 '(?<=<PackageVersion Include="Microsoft.Playwright" Version=")[^"]+' \
+            csharp/Directory.Packages.props)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Playwright for .NET: $VERSION"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      # Uses the playwright.ps1 that the build drops into the output directory. pwsh is
+      # preinstalled on GitHub's Ubuntu runners, so this needs no extra setup here even
+      # though it is the reason the module ships an in-process installer for developers
+      # who do not have it.
+      - name: Install Chromium and its OS dependencies
+        run: |
+          set -euo pipefail
+          pwsh csharp/tests/AutomationFramework.Tests/bin/Debug/net8.0/playwright.ps1 \
+            install --with-deps chromium
+
+      - name: Run the ${{ needs.detect.outputs.suite }} suite
+        env:
+          SUITE: ${{ needs.detect.outputs.suite }}
+        run: |
+          set -euo pipefail
+          case "$SUITE" in
+            smoke)      FILTER="Category=Smoke" ;;
+            regression) FILTER="Category=Regression" ;;
+            # Destructive tests burn a resource on purpose. They own disposable
+            # accounts so they are safe, but they are heavy on a shared target and
+            # stay out of routine runs.
+            all)        FILTER="Category!=Destructive" ;;
+            *)          echo "Unknown suite: $SUITE" >&2; exit 1 ;;
+          esac
+          dotnet test csharp/AutomationFramework.sln \
+            --no-build \
+            --filter "$FILTER" \
+            --results-directory csharp/TestResults \
+            --logger "trx;LogFileName=results.trx" \
+            --logger "junit;LogFilePath=junit.xml"
+
+      - name: Summarise the results
+        if: always()
+        run: |
+          python3 .github/scripts/junit_summary.py \
+            "C# suite (${{ needs.detect.outputs.suite }})" \
+            csharp/tests/AutomationFramework.Tests/junit.xml
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: csharp-reports
+          path: |
+            csharp/TestResults/
+            csharp/tests/AutomationFramework.Tests/junit.xml
+            csharp/tests/AutomationFramework.Tests/bin/Debug/net8.0/allure-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: csharp-failure-artifacts
+          path: csharp/TestResults/failure-artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # The single required check. Branch protection points at this one job, so the
+  # required-checks list does not need editing when a module is added or a job is
+  # renamed.
+  # ---------------------------------------------------------------------------
+  gate:
+    name: Gate
+    needs: [standards, detect, java, csharp]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Fail if any required job did not succeed
+        env:
+          STANDARDS: ${{ needs.standards.result }}
+          JAVA: ${{ needs.java.result }}
+          CSHARP: ${{ needs.csharp.result }}
+        run: |
+          set -euo pipefail
+          echo "standards=$STANDARDS java=$JAVA csharp=$CSHARP"
+
+          FAILED=0
+          # A skipped module job is expected: it means that module is not on this
+          # branch. Anything other than success or skipped is a failure, including
+          # cancelled, so a cancelled run can never report green.
+          for RESULT in "$STANDARDS" "$JAVA" "$CSHARP"; do
+            case "$RESULT" in
+              success|skipped) ;;
+              *) FAILED=1 ;;
+            esac
+          done
+
+          if [ "$FAILED" -ne 0 ]; then
+            echo "::error::At least one required job did not succeed."
+            exit 1
+          fi
+          echo "All required jobs succeeded."
