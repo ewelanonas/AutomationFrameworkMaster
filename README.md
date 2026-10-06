@@ -232,11 +232,37 @@ three of them.
 | Nested ternaries | `if` / `else` |
 | Reflection, `dynamic`, metaclasses, decorators hiding control flow | Explicit code |
 | A clever one-liner | Three plain statements |
+| Short-form bodies that hide logic (`=>`, single-expression members) | A block body `{ }` with an explicit `return` |
+| An inline anonymous callback more than one line long | A named method, passed by name |
 
 One short call doing one obvious thing is fine anywhere:
 `orders.Count(o => o.IsPaid)`. The rule targets **chains and nesting**, not the
 existence of the feature. Never put a chain inside an assertion — compute the
 value on its own line and name it, so the failure message shows a real value.
+
+#### Write bodies out in full
+
+`=>` is the worst offender in a four-language repo, because it means something
+different in each one: a whole method body in C#, a function in TypeScript, a
+one-expression function in Python, a lambda in Java. A reader coming from another
+module has to decode the symbol before they can start on the logic. A `{ }` block
+with an explicit `return` reads identically in all four.
+
+So **declare members and functions with a block body.** The short form is fine
+only where it carries no logic and fits on one line — a property returning a
+field, a locator, a trivial key selector. Anything with a condition, a `throw`, a
+null fallback, an `await`, or more than one operation gets a full body.
+
+Same rule for callbacks. Name them and pass them by name:
+
+```csharp
+_page.Console += RecordConsoleMessage;        // a reader can go read that method
+_page.Console += (_, m) => { /* ten lines */ };  // a reader has to parse it here
+```
+
+`csharp/tests/AutomationFramework.Tests/UiTestBase.cs` is the worked example —
+properties with guard clauses, named event handlers, and named local functions in
+place of inline capture lambdas.
 
 Per-language detail is in `.kiro/steering/<language>-testing.md`.
 
