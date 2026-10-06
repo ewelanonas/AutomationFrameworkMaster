@@ -3,6 +3,7 @@ package com.company.automation.support.extensions;
 import com.company.automation.support.PlaywrightFactory;
 import com.company.automation.support.RunContext;
 import com.microsoft.playwright.BrowserContext;
+import com.microsoft.playwright.ConsoleMessage;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.ScreenshotType;
 import io.qameta.allure.Allure;
@@ -83,16 +84,27 @@ public final class BrowserExtension
     List<String> consoleErrors = new ArrayList<>();
     CONSOLE_ERRORS.set(consoleErrors);
 
-    page.onConsoleMessage(
-        message -> {
-          if ("error".equals(message.type())) {
-            consoleErrors.add(message.text());
-          }
-        });
+    page.onConsoleMessage(message -> recordConsoleMessage(consoleErrors, message));
     page.onPageError(consoleErrors::add);
 
     CONTEXT.set(context);
     PAGE.set(page);
+  }
+
+  /**
+   * Records browser console output for this test, keeping only the errors.
+   *
+   * <p>The list is passed in rather than read from {@link #CONSOLE_ERRORS} so the handler stays
+   * bound to the test that registered it, exactly as the adjacent {@code onPageError} handler is.
+   *
+   * @param consoleErrors the collecting list belonging to the test being set up
+   * @param message the console message Playwright reported
+   */
+  private void recordConsoleMessage(List<String> consoleErrors, ConsoleMessage message) {
+    if (!"error".equals(message.type())) {
+      return;
+    }
+    consoleErrors.add(message.text());
   }
 
   @Override

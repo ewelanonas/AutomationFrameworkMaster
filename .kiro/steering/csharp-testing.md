@@ -223,6 +223,7 @@ Other C# constructs to avoid in test code:
 | `dynamic`, reflection, `Activator.CreateInstance` | Typed code                        |
 | Custom extension methods that read like a DSL | Ordinary named methods                  |
 | Pattern matching with many nested clauses    | A `switch` statement, or `if`/`else`     |
+| Relational and logical patterns (`status is >= 200 and < 300`) | Plain comparisons (`status >= 200 && status < 300`) |
 | Tuples with unnamed items (`item.Item1`)     | A `record` with named properties         |
 | `var` where the type is not obvious from the right-hand side | The explicit type      |
 | Deeply chained null-conditionals (`a?.b?.c?.d`) | A guard clause that fails with a clear message |

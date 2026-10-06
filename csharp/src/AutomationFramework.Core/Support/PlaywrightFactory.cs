@@ -59,7 +59,7 @@ public static class PlaywrightFactory
         AppConfig config = ConfigLoader.Config;
         BrowserInstaller.EnsureInstalled(config.Execution.Browser);
 
-        (IPlaywright playwright, IBrowser browser) = await Task.Run(async () =>
+        async Task<(IPlaywright Playwright, IBrowser Browser)> CreateAndLaunchAsync()
         {
             IPlaywright created = await Playwright.CreateAsync().ConfigureAwait(false);
 
@@ -69,16 +69,21 @@ public static class PlaywrightFactory
 
             IBrowserType browserType = BrowserTypeFor(created, config.Execution.Browser);
 
-            IBrowser launched = await browserType.LaunchAsync(new BrowserTypeLaunchOptions
+            BrowserTypeLaunchOptions launchOptions = new()
             {
                 Headless = config.Execution.Headless,
 
                 // Disabling animations removes a whole class of "fails as the modal appears" flake.
                 Args = ["--force-prefers-reduced-motion"],
-            }).ConfigureAwait(false);
+            };
+
+            IBrowser launched = await browserType.LaunchAsync(launchOptions).ConfigureAwait(false);
 
             return (created, launched);
-        }).ConfigureAwait(false);
+        }
+
+        (IPlaywright playwright, IBrowser browser) =
+            await Task.Run(CreateAndLaunchAsync).ConfigureAwait(false);
 
         _playwright = playwright;
         _browser = browser;
@@ -88,10 +93,20 @@ public static class PlaywrightFactory
     }
 
     /// <summary>The shared browser. <see cref="InitializeAsync"/> must have run first.</summary>
-    public static IBrowser Browser => _browser
-        ?? throw new InvalidOperationException(
-            "The browser has not been created. GlobalSetup.BeforeAllTests must call "
-            + "PlaywrightFactory.InitializeAsync() before any UI test runs.");
+    public static IBrowser Browser
+    {
+        get
+        {
+            if (_browser is null)
+            {
+                throw new InvalidOperationException(
+                    "The browser has not been created. GlobalSetup.BeforeAllTests must call "
+                    + "PlaywrightFactory.InitializeAsync() before any UI test runs.");
+            }
+
+            return _browser;
+        }
+    }
 
     /// <summary>
     /// A fresh, isolated context for one test, with tracing already started.

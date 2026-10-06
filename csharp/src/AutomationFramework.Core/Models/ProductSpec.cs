@@ -24,7 +24,18 @@ public sealed record ProductSpec(
 {
     /// <summary>The value as text, whichever JSON type carried it.</summary>
     public string ValueAsText()
-        => SpecValue.ValueKind == JsonValueKind.String
-            ? SpecValue.GetString() ?? string.Empty
-            : SpecValue.ToString();
+    {
+        if (SpecValue.ValueKind != JsonValueKind.String)
+        {
+            return SpecValue.ToString();
+        }
+
+        string? text = SpecValue.GetString();
+        if (text is null)
+        {
+            return string.Empty;
+        }
+
+        return text;
+    }
 }

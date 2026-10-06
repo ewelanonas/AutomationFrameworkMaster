@@ -19,6 +19,8 @@ public sealed record LoginResponse(
     public string BearerHeaderValue() => "Bearer " + AccessToken;
 
     public override string ToString()
-        => $"LoginResponse {{ AccessToken = {Redaction.Marker}, TokenType = {TokenType}, "
+    {
+        return $"LoginResponse {{ AccessToken = {Redaction.Marker}, TokenType = {TokenType}, "
             + $"ExpiresIn = {ExpiresIn} }}";
+    }
 }

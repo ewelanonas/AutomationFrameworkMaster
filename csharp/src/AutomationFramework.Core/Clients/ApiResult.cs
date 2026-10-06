@@ -24,7 +24,14 @@ namespace AutomationFramework.Core.Clients;
 /// <typeparam name="T">The success body type.</typeparam>
 public sealed record ApiResult<T>(int Status, T? Body, string RawBody, ResponseHeaders Headers)
 {
-    public bool IsSuccessful => Status is >= 200 and < 300;
+    /// <summary>True when the status is in the 2xx range.</summary>
+    public bool IsSuccessful
+    {
+        get
+        {
+            return Status >= 200 && Status < 300;
+        }
+    }
 
     /// <summary>The error body. Only meaningful for a failed call.</summary>
     public ApiError Error()
@@ -49,7 +56,7 @@ public static class ApiResult
         string rawBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
         T? body = default;
-        if (status is >= 200 and < 300 && !string.IsNullOrWhiteSpace(rawBody))
+        if (status >= 200 && status < 300 && !string.IsNullOrWhiteSpace(rawBody))
         {
             body = JsonSerializer.Deserialize<T>(rawBody, ApiHttp.JsonOptions);
         }
@@ -100,7 +107,14 @@ public sealed class ResponseHeaders
 
     /// <summary>A header value, or null when the header is absent.</summary>
     public string? Value(string name)
-        => _values.TryGetValue(name, out string? value) ? value : null;
+    {
+        if (_values.TryGetValue(name, out string? value))
+        {
+            return value;
+        }
+
+        return null;
+    }
 
     /// <summary>True when the header is present.</summary>
     public bool Has(string name) => _values.ContainsKey(name);

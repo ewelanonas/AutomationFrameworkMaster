@@ -19,10 +19,7 @@ public static class TestValues
 {
     private static readonly int Seed = ResolveSeed();
 
-    private static readonly ThreadLocal<Faker> LocalFaker = new(() => new Faker
-    {
-        Random = new Randomizer(Seed),
-    });
+    private static readonly ThreadLocal<Faker> LocalFaker = new(CreateSeededFaker);
 
     static TestValues()
     {
@@ -31,19 +28,37 @@ public static class TestValues
     }
 
     /// <summary>Generator for the current thread. Seeded, so two threads produce the same stream independently.</summary>
-    public static Faker Faker => LocalFaker.Value!;
+    public static Faker Faker
+    {
+        get
+        {
+            return LocalFaker.Value!;
+        }
+    }
 
     /// <summary>Unique, run-scoped email on a reserved domain that cannot deliver mail.</summary>
     public static string UniqueEmail()
-        => string.Create(
+    {
+        return string.Create(
             CultureInfo.InvariantCulture,
             $"af-{RunContext.RunId}-{RunContext.NextSequence()}@example.invalid");
+    }
 
     /// <summary>Unique, run-scoped name prefixed so a janitor job can find leftovers.</summary>
     public static string UniqueName(string prefix)
-        => string.Create(
+    {
+        return string.Create(
             CultureInfo.InvariantCulture,
             $"{prefix}-af-{RunContext.RunId}-{RunContext.NextSequence()}");
+    }
+
+    /// <summary>Builds the per-thread generator, pinned to the run's seed so data is reproducible.</summary>
+    private static Faker CreateSeededFaker()
+    {
+        Faker faker = new();
+        faker.Random = new Randomizer(Seed);
+        return faker;
+    }
 
     /// <summary>
     /// An id that is syntactically valid for the target API but certain not to exist.

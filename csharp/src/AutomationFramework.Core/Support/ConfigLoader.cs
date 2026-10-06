@@ -202,7 +202,15 @@ public static class ConfigLoader
         string variableName,
         Dictionary<string, string> dotEnv,
         string? fallback)
-        => EnvironmentValue(variableName, dotEnv) ?? fallback;
+    {
+        string? fromEnvironment = EnvironmentValue(variableName, dotEnv);
+        if (fromEnvironment is not null)
+        {
+            return fromEnvironment;
+        }
+
+        return fallback;
+    }
 
     private static string TextOf(
         string variableName,
@@ -235,7 +243,14 @@ public static class ConfigLoader
     }
 
     private static string TextOr(string? value, string defaultValue)
-        => string.IsNullOrWhiteSpace(value) ? defaultValue : value;
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return defaultValue;
+        }
+
+        return value;
+    }
 
     private static int IntOr(string? value, int defaultValue)
     {
@@ -249,5 +264,12 @@ public static class ConfigLoader
     }
 
     private static string StripTrailingSlash(string url)
-        => url.EndsWith('/') ? url[..^1] : url;
+    {
+        if (url.EndsWith('/'))
+        {
+            return url[..^1];
+        }
+
+        return url;
+    }
 }

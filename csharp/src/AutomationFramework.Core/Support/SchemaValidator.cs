@@ -176,5 +176,12 @@ public static class SchemaValidator
     }
 
     private static string Preview(string json)
-        => json.Length <= 300 ? json : json[..300] + "...";
+    {
+        if (json.Length <= 300)
+        {
+            return json;
+        }
+
+        return json[..300] + "...";
+    }
 }

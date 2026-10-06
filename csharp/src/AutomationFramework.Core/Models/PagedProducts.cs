@@ -19,10 +19,32 @@ public sealed record PagedProducts(
     [property: JsonPropertyName("total")] int Total)
 {
     /// <summary>True when this page carries no items.</summary>
-    public bool IsEmpty => Data is null || Data.Count == 0;
+    public bool IsEmpty
+    {
+        get
+        {
+            if (Data is null)
+            {
+                return true;
+            }
+
+            return Data.Count == 0;
+        }
+    }
 
     /// <summary>Number of items on this page, 0 when the page is empty.</summary>
-    public int Size => Data?.Count ?? 0;
+    public int Size
+    {
+        get
+        {
+            if (Data is null)
+            {
+                return 0;
+            }
+
+            return Data.Count;
+        }
+    }
 
     /// <summary>
     /// The ids on this page, in order.

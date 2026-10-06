@@ -61,7 +61,17 @@ public sealed record Credentials(
 
     /// <summary>True when the customer credentials are present, for tests that skip rather than fail.</summary>
     public bool HasCustomerCredentials
-        => !string.IsNullOrWhiteSpace(Username) && !string.IsNullOrWhiteSpace(Password);
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(Username))
+            {
+                return false;
+            }
+
+            return !string.IsNullOrWhiteSpace(Password);
+        }
+    }
 
     private static string Require(string? value, string variableName)
     {

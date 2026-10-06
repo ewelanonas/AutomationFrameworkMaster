@@ -73,14 +73,28 @@ public static partial class Redaction
 
     /// <summary>Redacts a header value, returning the marker when the name is sensitive.</summary>
     public static string? Header(string headerName, string? value)
-        => IsSensitiveHeader(headerName) ? Marker : Text(value);
+    {
+        if (IsSensitiveHeader(headerName))
+        {
+            return Marker;
+        }
+
+        return Text(value);
+    }
 
     /// <summary>
     /// Redacts a body or free-text blob: sensitive JSON fields by name, then token shapes by pattern.
     /// Both passes run, because a token can arrive either as a named field or embedded in a URL.
     /// </summary>
     public static string? Body(string? content)
-        => string.IsNullOrEmpty(content) ? content : Text(RedactJsonFields(content));
+    {
+        if (string.IsNullOrEmpty(content))
+        {
+            return content;
+        }
+
+        return Text(RedactJsonFields(content));
+    }
 
     /// <summary>Redacts token-shaped and card-shaped substrings in any text.</summary>
     public static string? Text(string? content)
@@ -98,18 +112,26 @@ public static partial class Redaction
 
     private static string RedactJsonFields(string content)
     {
-        return JsonFieldPattern().Replace(
-            content,
-            match =>
-            {
-                string key = match.Groups["key"].Value;
-                if (IsSensitiveField(key))
-                {
-                    return match.Groups[1].Value + "\"" + Marker + "\"";
-                }
+        return JsonFieldPattern().Replace(content, ReplaceSensitiveFieldValue);
+    }
 
-                return match.Value;
-            });
+    /// <summary>
+    /// Replaces one matched JSON field's value with the marker when its name is sensitive, and leaves the
+    /// match untouched otherwise.
+    /// </summary>
+    /// <remarks>
+    /// The capture group holding <c>"field":</c> is kept verbatim so only the value is replaced. Replacing
+    /// the whole match would drop the key and change the shape of the logged body.
+    /// </remarks>
+    private static string ReplaceSensitiveFieldValue(Match match)
+    {
+        string key = match.Groups["key"].Value;
+        if (IsSensitiveField(key))
+        {
+            return match.Groups[1].Value + "\"" + Marker + "\"";
+        }
+
+        return match.Value;
     }
 
     private static bool IsSensitiveField(string fieldName)

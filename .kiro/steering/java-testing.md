@@ -192,7 +192,7 @@ if (browser != null) {
 
 The cross-module rule in `automation-principles.md` ("write bodies out in
 full") lands here as a limit on `->`. A lambda body longer than one statement
-becomes a named method, and the lambda is replaced by a method reference:
+becomes a named method:
 
 ```java
 // Avoid: the handler body sits inside the setup method
@@ -206,9 +206,30 @@ page.onConsoleMessage(message -> {
 page.onConsoleMessage(this::recordConsoleMessage);
 ```
 
+**A method reference is the goal, not the requirement.** It only works when the
+handler needs nothing but the event argument. When the handler also needs a value
+from the enclosing scope — the per-test collecting list, a config value, a
+builder — keep a **one-line adapter lambda** that passes it explicitly:
+
+```java
+// The list belongs to this test. Pass it in.
+page.onConsoleMessage(message -> recordConsoleMessage(consoleErrors, message));
+```
+
+Do **not** force a method reference by having the named method reach for the
+value itself, through a `ThreadLocal`, a static, or a field. That trades a
+readability nit for shared mutable state, and the handler stops being bound to
+the test that registered it. The real rule is that **the body gets a name**; how
+it receives its inputs follows from what it needs. `BrowserExtension.java` is the
+worked example of the adapter form, and `consoleErrors::add` right beside it is
+the worked example of the plain form.
+
 Unavoidable short forms stay: the assertion APIs take a lambda by design
-(`assertThatThrownBy(() -> client.get(id))`), and a one-expression comparator or
-predicate is fine. The rule targets lambdas with a body, not the arrow itself.
+(`assertThatThrownBy(() -> client.get(id))`), `assertSoftly(softly -> { ... })`
+is the endorsed soft-assert idiom from `automation-principles.md` section 6 and is
+explicitly exempt, and a one-expression comparator, predicate or
+`ThreadLocal.withInitial` supplier is fine. The rule targets lambdas with a
+multi-statement body, not the arrow itself.
 
 Other Java constructs to avoid in test code:
 
