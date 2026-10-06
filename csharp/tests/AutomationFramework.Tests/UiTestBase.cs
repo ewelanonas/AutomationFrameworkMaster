@@ -24,7 +24,7 @@ namespace AutomationFramework.Tests;
 /// </remarks>
 public abstract class UiTestBase
 {
-    private readonly List<string> _consoleErrors = [];
+    private readonly List<string> _consoleErrors = new List<string>();
     private IBrowserContext? _context;
     private IPage? _page;
 
@@ -42,15 +42,41 @@ public abstract class UiTestBase
     protected AccountFlow Accounts { get; } = new(new UsersClient(ApiHttp.Client));
 
     /// <summary>The page for this test.</summary>
-    protected IPage Page => _page
-        ?? throw new InvalidOperationException("No page for this test. Did SetUp run?");
+    protected IPage Page
+    {
+        get
+        {
+            if (_page is null)
+            {
+                throw new InvalidOperationException("No page for this test. Did SetUp run?");
+            }
+
+            return _page;
+        }
+    }
 
     /// <summary>The isolated browser context for this test, for storage state and cookie work.</summary>
-    protected IBrowserContext BrowserContext => _context
-        ?? throw new InvalidOperationException("No browser context for this test. Did SetUp run?");
+    protected IBrowserContext BrowserContext
+    {
+        get
+        {
+            if (_context is null)
+            {
+                throw new InvalidOperationException("No browser context for this test. Did SetUp run?");
+            }
+
+            return _context;
+        }
+    }
 
     /// <summary>Every browser console error recorded during this test, unfiltered. For diagnostics.</summary>
-    protected IReadOnlyList<string> ConsoleErrors => _consoleErrors;
+    protected IReadOnlyList<string> ConsoleErrors
+    {
+        get
+        {
+            return _consoleErrors;
+        }
+    }
 
     /// <summary>
     /// Console errors worth failing a test for, with known third-party and application noise filtered out
@@ -60,7 +86,10 @@ public abstract class UiTestBase
     /// This is the accessor tests should use. A blanket assertion of zero console errors against a real
     /// application fails constantly and gets deleted within a week.
     /// </remarks>
-    protected List<string> SignificantConsoleErrors() => ConsoleErrorPolicy.Significant(_consoleErrors);
+    protected List<string> SignificantConsoleErrors()
+    {
+        return ConsoleErrorPolicy.Significant(_consoleErrors);
+    }
 
     [SetUp]
     public async Task CreateContextAndPage()
@@ -71,15 +100,23 @@ public abstract class UiTestBase
         _context = await PlaywrightFactory.NewContextAsync().ConfigureAwait(false);
         _page = await _context.NewPageAsync().ConfigureAwait(false);
 
-        _page.Console += (_, message) =>
-        {
-            if (string.Equals(message.Type, "error", StringComparison.Ordinal))
-            {
-                _consoleErrors.Add(message.Text);
-            }
-        };
+        _page.Console += RecordConsoleMessage;
+        _page.PageError += RecordPageError;
+    }
 
-        _page.PageError += (_, error) => _consoleErrors.Add(error);
+    /// <summary>Records browser console output, keeping only the errors.</summary>
+    private void RecordConsoleMessage(object? sender, IConsoleMessage message)
+    {
+        if (string.Equals(message.Type, "error", StringComparison.Ordinal))
+        {
+            _consoleErrors.Add(message.Text);
+        }
+    }
+
+    /// <summary>Records an uncaught page error as a console error.</summary>
+    private void RecordPageError(object? sender, string error)
+    {
+        _consoleErrors.Add(error);
     }
 
     [TearDown]
@@ -153,28 +190,38 @@ public abstract class UiTestBase
         }
     }
 
-    private static Task AttachScreenshotAsync(IPage page)
-        => TryCaptureAsync("a screenshot", async () =>
+    private static async Task AttachScreenshotAsync(IPage page)
+    {
+        async Task CaptureAsync()
         {
-            byte[] png = await page.ScreenshotAsync(new PageScreenshotOptions
+            PageScreenshotOptions options = new()
             {
                 FullPage = true,
                 Type = ScreenshotType.Png,
-            }).ConfigureAwait(false);
+            };
 
+            byte[] png = await page.ScreenshotAsync(options).ConfigureAwait(false);
             AllureApi.AddAttachment("Screenshot at failure", "image/png", png, ".png");
-        });
+        }
 
-    private static Task AttachPageHtmlAsync(IPage page)
-        => TryCaptureAsync("page HTML", async () =>
+        await TryCaptureAsync("a screenshot", CaptureAsync).ConfigureAwait(false);
+    }
+
+    private static async Task AttachPageHtmlAsync(IPage page)
+    {
+        async Task CaptureAsync()
         {
             string html = await page.ContentAsync().ConfigureAwait(false);
             AllureApi.AddAttachment(
                 "Page HTML at failure", "text/html", Encoding.UTF8.GetBytes(html), ".html");
-        });
+        }
 
-    private Task AttachDiagnosticsAsync(IPage page)
-        => TryCaptureAsync("failure diagnostics", async () =>
+        await TryCaptureAsync("page HTML", CaptureAsync).ConfigureAwait(false);
+    }
+
+    private async Task AttachDiagnosticsAsync(IPage page)
+    {
+        async Task CaptureAsync()
         {
             StringBuilder report = new();
             report.Append("test: ").AppendLine(TestContext.CurrentContext.Test.FullName);
@@ -202,14 +249,21 @@ public abstract class UiTestBase
 
             AllureApi.AddAttachment(
                 "Failure diagnostics", "text/plain", Encoding.UTF8.GetBytes(report.ToString()), ".txt");
-        });
+        }
 
-    private static Task AttachFileAsync(string name, string path, string contentType)
-        => TryCaptureAsync(name, async () =>
+        await TryCaptureAsync("failure diagnostics", CaptureAsync).ConfigureAwait(false);
+    }
+
+    private static async Task AttachFileAsync(string name, string path, string contentType)
+    {
+        async Task CaptureAsync()
         {
             byte[] bytes = await File.ReadAllBytesAsync(path).ConfigureAwait(false);
             AllureApi.AddAttachment(name, contentType, bytes, Path.GetExtension(path));
-        });
+        }
+
+        await TryCaptureAsync(name, CaptureAsync).ConfigureAwait(false);
+    }
 
     private static string ArtifactPath(string fileName)
     {

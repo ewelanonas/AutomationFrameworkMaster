@@ -209,6 +209,41 @@ Rules:
   clear message instead — a silent `undefined` becomes a confusing assertion
   failure three lines later.
 
+### Arrow functions: block bodies, and name the callbacks
+
+Arrows are unavoidable here — `test('...', async ({ page }) => { ... })` is the
+Playwright API and stays as it is. What the cross-module rule in
+`automation-principles.md` bans is the arrow that *hides* logic:
+
+- Use a **block body**, not an implicit return, for anything beyond one short
+  expression. `const x = () => cond ? a : b` becomes an `if`/`else` in `{ }`.
+- A callback longer than one line gets a **named function**, and the name is
+  passed:
+
+  ```ts
+  // Avoid: the handler body is inline in the fixture
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      consoleErrors.push(message.text());
+    }
+  });
+
+  // Prefer
+  function recordConsoleMessage(message: ConsoleMessage): void {
+    if (message.type() === 'error') {
+      consoleErrors.push(message.text());
+    }
+  }
+
+  page.on('console', recordConsoleMessage);
+  ```
+
+- Page objects and clients declare **methods**, never arrow properties
+  (`readonly submit = async () => {}`). Methods show up properly in stack
+  traces and read the same as the other three modules.
+- Locator getters may keep the short form: `get submit() { return this.page.getByTestId('submit'); }`
+  or a one-line arrow. That is the one place the density pays.
+
 Other TypeScript constructs to avoid in test code:
 
 | Avoid                                        | Prefer                              |

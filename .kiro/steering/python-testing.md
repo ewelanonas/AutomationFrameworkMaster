@@ -166,6 +166,21 @@ Rules:
   comprehensions spanning more than one line: use a loop instead.
 - No `functools.reduce`. Write the loop.
 - No `lambda` beyond a trivial key function (`key=lambda o: o.created_at`).
+  Anything with logic in it becomes a `def` with a name, and the name is what
+  gets passed:
+
+  ```python
+  # Avoid
+  page.on("console", lambda m: console_errors.append(m.text) if m.type == "error" else None)
+
+  # Prefer
+  def record_console_message(message: ConsoleMessage) -> None:
+      if message.type == "error":
+          console_errors.append(message.text)
+
+  page.on("console", record_console_message)
+  ```
+
 - No walrus operator in test code. It saves a line and costs a reader.
 - No chained `map`/`filter`/`zip` pipelines.
 - Long conditional expressions (`a if b else c if d else e`): use `if`/`elif`.

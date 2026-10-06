@@ -149,6 +149,8 @@ Concretely, prefer the plain form:
 | Clever one-liners                           | Three plain statements                    |
 | Nested ternaries                            | `if`/`else`                               |
 | Deeply nested lambdas or callbacks          | A named local method                      |
+| Short-form bodies that hide logic (`=>`, single-expression members) | A block body `{ }` with an explicit `return` |
+| An inline anonymous callback passed to a helper | A named method, passed by name         |
 | Reflection, dynamic dispatch, generic gymnastics | Explicit, typed code               |
 | Custom operator overloads or extension DSLs | Ordinary methods with clear names         |
 | Regex where a simple string check works     | `Contains` / `StartsWith`                 |
@@ -161,6 +163,32 @@ never correctness or structure for either.
 Where a functional construct genuinely is the clearest option — a single
 `Where`, `filter`, or `map` on one line, doing one obvious thing — use it. The
 rule targets chains and nesting, not the existence of the feature.
+
+### Write bodies out in full
+
+`=>` means different things in different languages: a whole method body in C#,
+a function in TypeScript, a one-expression function in Python, a lambda in
+Java. A reader coming from another language has to decode it before they can
+read the logic. A `{ }` block with an explicit `return` reads the same way in
+all four.
+
+So: **declare members and functions with a block body.** The short form is
+allowed only where it carries no logic and fits comfortably on one line — a
+property that returns a field, a locator definition, a trivial key selector.
+
+Anything with a condition, a `throw`, a `null` fallback, an `await`, or more
+than one operation gets a full body. And when a helper takes a callback, give
+the callback a name and pass it by name instead of inlining it:
+
+```text
+page.on("console", RecordConsoleMessage)      // a reader can go read that method
+page.on("console", m => { ...ten lines... })  // a reader has to parse it here
+```
+
+Concretely, per module: expression-bodied members and long lambdas in C#,
+multi-statement lambdas in Java, `lambda` beyond a key function in Python,
+implicit-return arrow chains in TypeScript. Each module's steering has the
+specifics.
 
 If a piece of logic is complex enough that the plain form is still hard to
 read, that logic does not belong in a test. Move it into a well-named helper
@@ -189,3 +217,7 @@ Reject code that does any of these:
 - Chained functional pipelines (LINQ, streams, nested comprehensions,
   `reduce`) where a plain loop would read clearly.
 - Clever one-liners, nested ternaries, or reflection in place of explicit code.
+- A short-form `=>` body carrying real logic — a condition, a `throw`, a
+  fallback, an `await` — where a `{ }` block with an explicit `return` belongs.
+- An inline anonymous callback more than one line long, where a named method
+  passed by name would let the reader move on.

@@ -217,7 +217,9 @@ Other C# constructs to avoid in test code:
 | Avoid                                        | Prefer                                  |
 | -------------------------------------------- | --------------------------------------- |
 | Nested ternaries, `?:` inside interpolation  | `if`/`else` on separate lines            |
-| Long expression-bodied members doing real work | A normal method body with `{ }`        |
+| Expression-bodied members carrying logic (`=>`) | A normal method body with `{ }`       |
+| An inline lambda handed to a helper or an event | A named method, subscribed by name    |
+| Collection expressions (`= []`)              | `new List<string>()`                     |
 | `dynamic`, reflection, `Activator.CreateInstance` | Typed code                        |
 | Custom extension methods that read like a DSL | Ordinary named methods                  |
 | Pattern matching with many nested clauses    | A `switch` statement, or `if`/`else`     |
@@ -228,6 +230,85 @@ Other C# constructs to avoid in test code:
 Expression-bodied members are fine for one-line property accessors and simple
 locator definitions. The line to hold is: **can a Java or Python developer read
 it correctly on the first pass?**
+
+### Expression-bodied members and lambdas: write the body out
+
+`=>` is doing four unrelated jobs in C# — a method body, a property getter, a
+lambda, a `switch` arm — and a reader whose main language is Java or Python has
+to work out which one they are looking at before they can read the code. A
+`{ }` block with an explicit `return` needs no such decoding.
+
+Use a block body whenever the member does anything more than hand back a value:
+
+```csharp
+// Avoid: a throw and a null-coalesce hidden in a property arrow
+protected IPage Page => _page
+    ?? throw new InvalidOperationException("No page for this test. Did SetUp run?");
+
+// Prefer: the guard and the return are two plain statements
+protected IPage Page
+{
+    get
+    {
+        if (_page is null)
+        {
+            throw new InvalidOperationException("No page for this test. Did SetUp run?");
+        }
+
+        return _page;
+    }
+}
+```
+
+The same applies to lambdas passed to a helper or an event. Name them and
+subscribe by name; the reader sees *what* happens here and can go read *how*
+separately:
+
+```csharp
+// Avoid: the handler body is inline in SetUp, in the middle of lifecycle code
+_page.Console += (_, message) =>
+{
+    if (string.Equals(message.Type, "error", StringComparison.Ordinal))
+    {
+        _consoleErrors.Add(message.Text);
+    }
+};
+
+// Prefer: one line in SetUp, and a method with a name that says what it does
+_page.Console += RecordConsoleMessage;
+```
+
+Where a helper takes a `Func<Task>`, pass a **named local function** rather
+than an inline `async () =>`:
+
+```csharp
+private static async Task AttachScreenshotAsync(IPage page)
+{
+    async Task CaptureAsync()
+    {
+        byte[] png = await page.ScreenshotAsync(...).ConfigureAwait(false);
+        AllureApi.AddAttachment("Screenshot at failure", "image/png", png, ".png");
+    }
+
+    await TryCaptureAsync("a screenshot", CaptureAsync).ConfigureAwait(false);
+}
+```
+
+Rules:
+
+- `=>` on a member is allowed only for a one-line accessor that returns a field,
+  a constant, or a locator. No condition, no `??`, no `throw`, no `await`.
+- No lambda longer than one statement. Extract a named method or local function.
+- Never subscribe an event to an inline multi-line lambda.
+- Prefer `new List<string>()` to the `= []` collection expression, and
+  `new PageScreenshotOptions { ... }` to a bare `new() { ... }` where the type
+  is not already on the line. Both are recent C# shorthands that read as noise
+  to someone who last used the language a few versions ago.
+- `Support/` may be a little denser than `tests/`, but the same rules apply —
+  `UiTestBase` is read by everyone who debugs a failing UI test.
+
+`dotnet format --verify-no-changes` will not catch any of this. It is a review
+item.
 
 ## Anti-patterns specific to .NET
 

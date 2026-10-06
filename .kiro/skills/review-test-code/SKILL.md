@@ -109,6 +109,14 @@ Order findings by severity, not by file. Lead with the blockers.
 - Nested ternaries, or a ternary inside a template literal or interpolation.
 - Optional-chaining trains (`a?.b?.c?.d`) hiding a missing guard.
 - A lambda longer than one statement, or a nested lambda.
+- A short-form `=>` body carrying logic: a C# expression-bodied member with a
+  condition, `??`, `throw` or `await`; a TypeScript implicit-return arrow doing
+  more than one thing; a Python `lambda` beyond a key function. A `{ }` block
+  with an explicit `return` is the house style.
+- An inline anonymous callback where a named method passed by name would do —
+  event handlers and `Func<Task>`/`Runnable`-style parameters especially.
+- A TypeScript page object declaring actions as arrow properties instead of
+  methods.
 - Reflection, `dynamic`, metaclasses, decorators with hidden control flow, or
   annotation-generated code where explicit code would do.
 - Type-level cleverness (conditional/mapped types, deep generics) outside

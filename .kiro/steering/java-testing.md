@@ -188,6 +188,28 @@ if (browser != null) {
 - No method-reference gymnastics where a lambda body is clearer, and no lambda
   longer than one statement — extract a named method.
 
+### Lambdas: one statement, or give it a name
+
+The cross-module rule in `automation-principles.md` ("write bodies out in
+full") lands here as a limit on `->`. A lambda body longer than one statement
+becomes a named method, and the lambda is replaced by a method reference:
+
+```java
+// Avoid: the handler body sits inside the setup method
+page.onConsoleMessage(message -> {
+  if ("error".equals(message.type())) {
+    consoleErrors.add(message.text());
+  }
+});
+
+// Prefer: one line in setup, and a method whose name says what it does
+page.onConsoleMessage(this::recordConsoleMessage);
+```
+
+Unavoidable short forms stay: the assertion APIs take a lambda by design
+(`assertThatThrownBy(() -> client.get(id))`), and a one-expression comparator or
+predicate is fine. The rule targets lambdas with a body, not the arrow itself.
+
 Other Java constructs to avoid in test code:
 
 | Avoid                                     | Prefer                             |
