@@ -53,10 +53,10 @@ Python and TypeScript are not built yet. Run
 | `docs/mcp/` + MCP config template | Ready |
 | `.env.example`, `.gitignore` | Ready |
 | `shared/environments/`, `shared/contracts/` | Ready — [demo target](#the-demo-target) |
-| `docs/decisions/` | Ready — 4 ADRs |
-| `java/` on `framework/java` | Ready — 33 tests |
-| `csharp/` on `framework/csharp` | Ready — 34 tests |
-| `python/` `typescript/` | Branch not created yet |
+| `docs/decisions/` | Ready — 5 ADRs |
+| `java/` on `master` | Ready — 33 tests |
+| `csharp/` on `master` | Ready — 34 tests |
+| `python/` `typescript/` | Not built yet |
 | `.github/workflows/ci.yml` | Ready — [see CI](#ci) |
 
 ## Branching model
@@ -127,28 +127,29 @@ together, which is how it should have been.
 
 ## Layout
 
-The target shape across all branches. On any single branch you see `.kiro/`,
-`docs/`, `shared/`, and **one** language module — the one that branch owns.
-Entries marked *(planned)* do not exist on any branch yet.
+What you get on `master`. Entries marked *(not built yet)* are the remaining two
+modules; everything else exists today.
 
 ```text
 AutomationFrameworkMaster/
-├── .kiro/                                         on every branch
+├── .kiro/
 │   ├── steering/         Standards the agent always applies (15 files)
 │   ├── skills/           Task workflows the agent follows (8 skills)
 │   └── settings/         MCP server config — gitignored, copied from docs/mcp/
-├── csharp/               .NET module              on framework/csharp
-├── java/                 JVM module               on framework/java
-├── python/               Python module            on framework/python
-├── typescript/           TypeScript module        on framework/typescript
-├── shared/                                        (planned)
+├── csharp/               .NET module              34 tests
+├── java/                 JVM module               33 tests
+├── python/               Python module            (not built yet)
+├── typescript/           TypeScript module        (not built yet)
+├── shared/
 │   ├── contracts/        OpenAPI / JSON Schema — the source of truth
 │   ├── testdata/         Language-neutral payloads
 │   └── environments/     Non-secret env descriptors (URLs, timeouts)
 ├── docs/
 │   ├── mcp/              MCP server setup
-│   └── decisions/        ADRs: NNNN-short-title.md   (planned)
-├── .github/workflows/    CI                       (planned)
+│   └── decisions/        ADRs: NNNN-short-title.md   (5 ADRs)
+├── .github/
+│   ├── workflows/ci.yml  CI
+│   └── scripts/          Standards gate + JUnit summary
 ├── .env.example          Every variable the suites need
 └── .gitignore
 ```
