@@ -26,12 +26,15 @@ namespace AutomationFramework.Core.Flows;
 /// </remarks>
 public sealed class AccountFlow(UsersClient usersClient)
 {
+    private const int DuplicateEmailStatus = 409;
+
     /// <summary>
     /// Registers a fresh customer account and returns its credentials.
     /// </summary>
     /// <exception cref="InvalidOperationException">
-    /// Thrown when registration is refused. Failing here with the status is far clearer than letting every
-    /// later assertion fail against a sign-in that could never have worked.
+    /// Thrown when registration is refused, including the duplicate case where the generated address is
+    /// already registered. Failing here with the status is far clearer than letting every later assertion
+    /// fail against a sign-in that could never have worked.
     /// </exception>
     public async Task<TestAccount> CreateCustomerAsync()
     {
@@ -58,6 +61,16 @@ public sealed class AccountFlow(UsersClient usersClient)
             Password: Password);
 
         ApiResult<NoBody> result = await usersClient.RegisterAsync(request).ConfigureAwait(false);
+
+        if (result.Status == DuplicateEmailStatus)
+        {
+            throw new InvalidOperationException(
+                $"Registration was refused as a duplicate ({DuplicateEmailStatus}): the email {email} is "
+                + "already registered, so two processes generated the same identity. Compare the runId and "
+                + "processTag on the \"Environment ... resolved\" line in each log: AF_RUN_ID pins the run "
+                + "id deliberately, but the process tag must differ between processes. "
+                + $"Body: {result.RawBody}");
+        }
 
         if (!result.IsSuccessful)
         {

@@ -37,14 +37,16 @@ public final class AccountFlow {
    */
   private static final String PASSWORD = "Str0ng-Pass!123";
 
+  private static final int DUPLICATE_EMAIL_STATUS = 409;
+
   private final UsersClient usersClient = new UsersClient();
 
   /**
    * Registers a fresh customer account and returns its credentials.
    *
-   * @throws IllegalStateException if registration is refused — failing here with the status is far
-   *     clearer than letting every later assertion fail against a sign-in that could never have
-   *     worked
+   * @throws IllegalStateException if registration is refused, including the duplicate case where
+   *     the generated address is already registered — failing here with the status is far clearer
+   *     than letting every later assertion fail against a sign-in that could never have worked
    */
   @Step("Register a disposable customer account via the API")
   public TestAccount createCustomer() {
@@ -61,6 +63,19 @@ public final class AccountFlow {
             PASSWORD);
 
     ApiResult<Void> result = usersClient.register(request);
+
+    if (result.status() == DUPLICATE_EMAIL_STATUS) {
+      throw new IllegalStateException(
+          "Registration was refused as a duplicate ("
+              + DUPLICATE_EMAIL_STATUS
+              + "): the email "
+              + email
+              + " is already registered, so two processes generated the same identity. Compare the"
+              + " runId and processTag on the \"Environment ... resolved\" line in each log: AF_RUN_ID"
+              + " pins the run id deliberately, but the process tag must differ between processes."
+              + " Body: "
+              + result.rawBody());
+    }
 
     if (!result.isSuccessful()) {
       throw new IllegalStateException(

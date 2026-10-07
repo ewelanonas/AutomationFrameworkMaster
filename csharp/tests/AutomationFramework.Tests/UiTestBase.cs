@@ -226,6 +226,7 @@ public abstract class UiTestBase
             StringBuilder report = new();
             report.Append("test: ").AppendLine(TestContext.CurrentContext.Test.FullName);
             report.Append("runId: ").AppendLine(RunContext.RunId);
+            report.Append("processTag: ").AppendLine(RunContext.ProcessTag);
 
             try
             {

@@ -31,6 +31,9 @@ public final class ConfigLoader {
   private static final Logger log = LoggerFactory.getLogger(ConfigLoader.class);
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
+  private static final int MINIMUM_TIMEOUT_MS = 1_000;
+  private static final int MAXIMUM_TIMEOUT_MS = 600_000;
+
   private static Config cached;
 
   private ConfigLoader() {}
@@ -86,10 +89,22 @@ public final class ConfigLoader {
 
     Config.Timeouts timeouts =
         new Config.Timeouts(
-            intOr(file.path("timeouts").path("elementMs"), 10_000),
-            intOr(file.path("timeouts").path("navigationMs"), 30_000),
-            intOr(file.path("timeouts").path("apiMs"), 30_000),
-            intOr(file.path("timeouts").path("workflowMs"), 60_000));
+            intOf(
+                "AF_TIMEOUTS_ELEMENTMS",
+                overrides,
+                file.path("timeouts").path("elementMs"),
+                10_000),
+            intOf(
+                "AF_TIMEOUTS_NAVIGATIONMS",
+                overrides,
+                file.path("timeouts").path("navigationMs"),
+                30_000),
+            intOf("AF_TIMEOUTS_APIMS", overrides, file.path("timeouts").path("apiMs"), 30_000),
+            intOf(
+                "AF_TIMEOUTS_WORKFLOWMS",
+                overrides,
+                file.path("timeouts").path("workflowMs"),
+                60_000));
 
     Config.Execution execution =
         new Config.Execution(
@@ -111,14 +126,17 @@ public final class ConfigLoader {
     // Logged once, and deliberately: the single most common wasted debugging hour is a suite
     // that was pointing somewhere other than where the engineer assumed.
     log.info(
-        "Environment '{}' resolved. UI={} API={} headless={} browser={} testIdAttribute={} runId={}",
+        "Environment '{}' resolved. UI={} API={} headless={} browser={} testIdAttribute={}"
+            + " elementMs={} runId={} processTag={}",
         config.envName(),
         config.ui().baseUrl(),
         config.api().baseUrl(),
         config.execution().headless(),
         config.execution().browser(),
         config.execution().testIdAttribute(),
-        RunContext.runId());
+        config.timeouts().elementMs(),
+        RunContext.runId(),
+        RunContext.processTag());
   }
 
   private static String resolveEnvName() {
@@ -246,6 +264,51 @@ public final class ConfigLoader {
       return node.asText();
     }
     return defaultValue;
+  }
+
+  /**
+   * A timeout in milliseconds: the environment variable when set, otherwise the environment file,
+   * otherwise the built-in default.
+   *
+   * <p>Unlike {@link #intOr(JsonNode, int)}, a malformed or out-of-range <b>environment
+   * variable</b> throws rather than falling back. Someone who sets this variable is deliberately
+   * changing the waiting policy, usually to fix a failing pipeline; silently ignoring a typo would
+   * mean the run behaves exactly as it did before and the engineer concludes the timeout was not
+   * the problem. The lower bound also catches the common mistake of writing seconds where
+   * milliseconds are expected.
+   */
+  private static int intOf(
+      String variableName, Map<String, String> dotEnv, JsonNode fallback, int defaultValue) {
+    String fromEnvironment = environmentValue(variableName, dotEnv);
+    if (fromEnvironment == null) {
+      return intOr(fallback, defaultValue);
+    }
+
+    int parsed;
+    try {
+      parsed = Integer.parseInt(fromEnvironment);
+    } catch (NumberFormatException e) {
+      throw new IllegalStateException(
+          variableName
+              + " must be a whole number of milliseconds, but was '"
+              + fromEnvironment
+              + "'.",
+          e);
+    }
+
+    if (parsed < MINIMUM_TIMEOUT_MS || parsed > MAXIMUM_TIMEOUT_MS) {
+      throw new IllegalStateException(
+          variableName
+              + " must be between "
+              + MINIMUM_TIMEOUT_MS
+              + " and "
+              + MAXIMUM_TIMEOUT_MS
+              + " milliseconds, but was "
+              + parsed
+              + ".");
+    }
+
+    return parsed;
   }
 
   private static int intOr(JsonNode node, int defaultValue) {

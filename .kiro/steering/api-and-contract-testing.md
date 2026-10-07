@@ -88,7 +88,8 @@ Every protected endpoint gets a test per role boundary:
 ## Correlation and diagnostics
 
 - Every request carries a correlation id header
-  (`X-Correlation-Id: af-{runId}-{seq}`), logged and attached to the report.
+  (`X-Correlation-Id: af-{runId}-{processTag}-{seq}`), logged and attached to the
+  report.
 - On failure, attach method, URL, request headers (redacted), request body
   (redacted), status, response headers, response body, and elapsed time.
 - Never attach a raw `Authorization` header. Redaction runs before attachment.

@@ -123,8 +123,14 @@ Rules:
 
 ## Uniqueness and correlation
 
-- Every run generates a **run id** (short uuid or CI build number). Include it
-  in generated names and emails: `af-{runId}-{n}@example.invalid`.
+- Every run generates a **run id** (short uuid or CI build number), and every
+  process mints a **process tag**. Include both in generated names and emails:
+  `af-{runId}-{processTag}-{n}@example.invalid`.
+- The run id alone is not enough: two module jobs in one workflow run share it
+  and each restarts its own counter at 1, so the second job re-mints addresses
+  the first already registered and the API answers `409`. The process tag is
+  what keeps the identity unique per process while the run id stays traceable.
+  See [ADR 0006](../../docs/decisions/0006-process-tag-in-generated-identity.md).
 - Use reserved test domains for emails: `example.com`, `example.invalid`, or
   `test.invalid`. Never a real domain.
 - Phone numbers: use documented reserved ranges, never a real number.

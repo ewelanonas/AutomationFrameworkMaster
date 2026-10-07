@@ -41,7 +41,7 @@ public static class TestValues
     {
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"af-{RunContext.RunId}-{RunContext.NextSequence()}@example.invalid");
+            $"af-{RunContext.RunId}-{RunContext.ProcessTag}-{RunContext.NextSequence()}@example.invalid");
     }
 
     /// <summary>Unique, run-scoped name prefixed so a janitor job can find leftovers.</summary>
@@ -49,7 +49,7 @@ public static class TestValues
     {
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{prefix}-af-{RunContext.RunId}-{RunContext.NextSequence()}");
+            $"{prefix}-af-{RunContext.RunId}-{RunContext.ProcessTag}-{RunContext.NextSequence()}");
     }
 
     /// <summary>Builds the per-thread generator, pinned to the run's seed so data is reproducible.</summary>

@@ -60,12 +60,24 @@ public final class TestValues {
 
   /** Unique, run-scoped email on a reserved domain that cannot deliver mail. */
   public static String uniqueEmail() {
-    return "af-" + RunContext.runId() + "-" + RunContext.nextSequence() + "@example.invalid";
+    return "af-"
+        + RunContext.runId()
+        + "-"
+        + RunContext.processTag()
+        + "-"
+        + RunContext.nextSequence()
+        + "@example.invalid";
   }
 
   /** Unique, run-scoped name prefixed so a janitor job can find leftovers. */
   public static String uniqueName(String prefix) {
-    return prefix + "-af-" + RunContext.runId() + "-" + RunContext.nextSequence();
+    return prefix
+        + "-af-"
+        + RunContext.runId()
+        + "-"
+        + RunContext.processTag()
+        + "-"
+        + RunContext.nextSequence();
   }
 
   /**

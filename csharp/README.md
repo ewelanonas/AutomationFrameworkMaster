@@ -45,6 +45,7 @@ dotnet test csharp/AutomationFramework.sln --no-build --filter "FullyQualifiedNa
 | `$env:AF_HEADLESS='false'` | Watch the browser. Run it yourself; it blocks. |
 | `$env:AF_DATA_SEED=<n>` | Reproduce a run's generated data exactly |
 | `$env:AF_RUN_ID=<id>` | Reuse a run id, to target data a previous run created |
+| `$env:AF_TIMEOUTS_ELEMENTMS=<ms>` | Override the element/expect timeout (1000–600000). CI uses 30000 |
 | `$env:AF_SKIP_BROWSER_INSTALL='true'` | Skip the install check in CI, where the browser is cached |
 
 ### Reports
@@ -285,8 +286,11 @@ specific rules have to be declared before general ones.
 
 - **No `.github/workflows/`.** Nothing runs this in CI yet.
 - **Registered accounts are never deleted.** The demo API offers no self-delete.
-  Every address is on `example.invalid` with the run id embedded so a janitor can
-  find them; a real project registers cleanup at creation time.
+  Every address is generated as `af-{runId}-{processTag}-{n}@example.invalid`, so
+  the `af-` prefix and the embedded run id let a janitor find them; a real
+  project registers cleanup at creation time. The process tag is what keeps two
+  processes that share a run id from minting the same address — see
+  [ADR 0006](../docs/decisions/0006-process-tag-in-generated-identity.md).
 - **No Allure step structure.** The bare `AllureApi.Step(name)` overload starts a
   step nothing closes, and calling it from a flow hung the suite. Flows log
   instead. The wrapping overload would restore it.

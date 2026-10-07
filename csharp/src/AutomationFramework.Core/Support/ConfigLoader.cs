@@ -18,6 +18,9 @@ namespace AutomationFramework.Core.Support;
 /// </remarks>
 public static class ConfigLoader
 {
+    private const int MinimumTimeoutMs = 1_000;
+    private const int MaximumTimeoutMs = 600_000;
+
     private static readonly object Gate = new();
     private static AppConfig? _cached;
 
@@ -91,10 +94,10 @@ public static class ConfigLoader
             TextOr(file["api:loginPath"], "/users/login"));
 
         Timeouts timeouts = new(
-            IntOr(file["timeouts:elementMs"], 10_000),
-            IntOr(file["timeouts:navigationMs"], 30_000),
-            IntOr(file["timeouts:apiMs"], 30_000),
-            IntOr(file["timeouts:workflowMs"], 60_000));
+            IntOf("AF_TIMEOUTS_ELEMENTMS", overrides, file["timeouts:elementMs"], 10_000),
+            IntOf("AF_TIMEOUTS_NAVIGATIONMS", overrides, file["timeouts:navigationMs"], 30_000),
+            IntOf("AF_TIMEOUTS_APIMS", overrides, file["timeouts:apiMs"], 30_000),
+            IntOf("AF_TIMEOUTS_WORKFLOWMS", overrides, file["timeouts:workflowMs"], 60_000));
 
         ExecutionConfig execution = new(
             BooleanOf("AF_HEADLESS", overrides, file["execution:headless"], defaultValue: true),
@@ -117,7 +120,8 @@ public static class ConfigLoader
         TestLog.Info(
             $"Environment '{config.EnvName}' resolved. UI={config.Ui.BaseUrl} API={config.Api.BaseUrl} "
             + $"headless={config.Execution.Headless} browser={config.Execution.Browser} "
-            + $"testIdAttribute={config.Execution.TestIdAttribute} runId={RunContext.RunId}");
+            + $"testIdAttribute={config.Execution.TestIdAttribute} elementMs={config.Timeouts.ElementMs} "
+            + $"runId={RunContext.RunId} processTag={RunContext.ProcessTag}");
     }
 
     private static string ResolveEnvName()
@@ -250,6 +254,49 @@ public static class ConfigLoader
         }
 
         return value;
+    }
+
+    /// <summary>
+    /// A timeout in milliseconds: the environment variable when set, otherwise the environment file,
+    /// otherwise the built-in default.
+    /// </summary>
+    /// <remarks>
+    /// Unlike <see cref="IntOr"/>, a malformed or out-of-range <b>environment variable</b> throws rather
+    /// than falling back. Someone who sets this variable is deliberately changing the waiting policy,
+    /// usually to fix a failing pipeline; silently ignoring a typo would mean the run behaves exactly as
+    /// it did before and the engineer concludes the timeout was not the problem. The lower bound also
+    /// catches the common mistake of writing seconds where milliseconds are expected.
+    /// </remarks>
+    private static int IntOf(
+        string variableName,
+        Dictionary<string, string> dotEnv,
+        string? fallback,
+        int defaultValue)
+    {
+        string? fromEnvironment = EnvironmentValue(variableName, dotEnv);
+        if (fromEnvironment is null)
+        {
+            return IntOr(fallback, defaultValue);
+        }
+
+        if (!int.TryParse(
+                fromEnvironment,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out int parsed))
+        {
+            throw new InvalidOperationException(
+                $"{variableName} must be a whole number of milliseconds, but was '{fromEnvironment}'.");
+        }
+
+        if (parsed < MinimumTimeoutMs || parsed > MaximumTimeoutMs)
+        {
+            throw new InvalidOperationException(
+                $"{variableName} must be between {MinimumTimeoutMs} and {MaximumTimeoutMs} "
+                + $"milliseconds, but was {parsed}.");
+        }
+
+        return parsed;
     }
 
     private static int IntOr(string? value, int defaultValue)

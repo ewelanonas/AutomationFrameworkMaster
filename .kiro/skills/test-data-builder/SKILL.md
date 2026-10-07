@@ -28,7 +28,8 @@ CustomerBuilder.Valid().WithExpiredCard().Build()
    setters are allowed as an escape hatch, but the named intents are what tests
    should read like.
 3. **Unique where uniqueness matters.** Emails, usernames, order references,
-   and external ids include the run id: `af-{runId}-{seq}@example.invalid`.
+   and external ids include the run id and the per-process tag:
+   `af-{runId}-{processTag}-{seq}@example.invalid`.
    Reserved domains only (`example.com`, `example.invalid`, `test.invalid`).
 4. **Seeded randomness.** One faker instance per run, seeded from config
    (`AF_DATA_SEED`), and the seed is logged and attached to the report. A
@@ -77,7 +78,7 @@ public sealed class CustomerBuilder
 
     private CustomerBuilder()
     {
-        _email = TestValues.UniqueEmail();       // af-{runId}-{n}@example.invalid
+        _email = TestValues.UniqueEmail();       // af-{runId}-{processTag}-{n}@example.invalid
         _cardNumber = TestValues.ValidCardNumber();
         _cardExpiry = "12/30";
     }

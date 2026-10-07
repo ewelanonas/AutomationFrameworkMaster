@@ -52,6 +52,7 @@ Quarantined tests are excluded from every run by default, via
 | `-Dsurefire.rerunFailingTestsCount=0` | Confirm a flake is real (already the default) |
 | `AF_DATA_SEED=<n>` | Reproduce a run's generated data exactly |
 | `AF_RUN_ID=<id>` | Reuse a run id, to target data a previous run created |
+| `AF_TIMEOUTS_ELEMENTMS=<ms>` | Override the element/assertion timeout (1000–600000). CI uses 30000 |
 
 ### Reports
 
@@ -271,8 +272,11 @@ Honest list of what a production suite would add:
 
 - **No `.github/workflows/`.** Nothing runs this in CI yet.
 - **Registered accounts are never deleted.** The demo API offers no self-delete.
-  Every address is on `example.invalid` with the run id embedded so a janitor can
-  find them; a real project registers cleanup at creation time.
+  Every address is generated as `af-{runId}-{processTag}-{n}@example.invalid`, so
+  the `af-` prefix and the embedded run id let a janitor find them; a real
+  project registers cleanup at creation time. The process tag is what keeps two
+  processes that share a run id from minting the same address — see
+  [ADR 0006](../docs/decisions/0006-process-tag-in-generated-identity.md).
 - **No product cleanup path exercised.** `ProductsClient` has `create` and
   `deleteIgnoringMissing` for the authorization-boundary test, but no test
   currently seeds a product.

@@ -502,6 +502,14 @@ Config resolves lowest-to-highest: code defaults →
 variables. It fails fast at startup naming every missing key, and never
 defaults a base URL to production.
 
+The timeout policy is overridable the same way, with `AF_TIMEOUTS_ELEMENTMS`,
+`AF_TIMEOUTS_NAVIGATIONMS`, `AF_TIMEOUTS_APIMS` and `AF_TIMEOUTS_WORKFLOWMS`
+(milliseconds, 1000–600000; a malformed or out-of-range value fails the run
+rather than being ignored). CI sets `AF_TIMEOUTS_ELEMENTMS=30000` because a
+cold runner needs longer for the SPA to become interactive;
+`shared/environments/local.json` keeps 10000, so local runs keep the fast
+feedback loop. Nothing branches on the environment name in code.
+
 ### MCP servers (optional but recommended)
 
 ```powershell

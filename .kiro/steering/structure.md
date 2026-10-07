@@ -78,6 +78,12 @@ typescript/
 └── tests/{ui,api,contract}/
 ```
 
+A unit-level check of a framework internal belongs to no suite, so it gets a
+`Support/` folder (C#) or `support/` package (Java) under the **test** tree,
+mirroring the layer it checks — for example the generated-identity format tests
+beside `support/RunContext`. Noted here as a deliberate divergence from the
+`{ui,api,contract}` shape above; scenarios still go in one of those three.
+
 ## Naming conventions
 
 | Thing            | Pattern                          | Example                       |

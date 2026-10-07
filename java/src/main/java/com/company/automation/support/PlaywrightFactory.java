@@ -5,6 +5,7 @@ import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.assertions.PlaywrightAssertions;
 import com.microsoft.playwright.options.ViewportSize;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -35,10 +36,38 @@ public final class PlaywrightFactory {
   private static final ThreadLocal<Playwright> PLAYWRIGHT = new ThreadLocal<>();
   private static final ThreadLocal<Browser> BROWSER = new ThreadLocal<>();
 
+  private static boolean assertionTimeoutApplied;
+
   private PlaywrightFactory() {}
+
+  /**
+   * Applies the assertion timeout once per JVM, before any thread can assert.
+   *
+   * <p>Playwright's web-first assertions keep their <b>own</b> timeout, separate from the context
+   * default set in {@link #newContext()}. Without this they stay on the built-in 5s regardless of
+   * what the timeout policy says, which makes {@code assertThat(page()).hasURL(...)} the tightest
+   * wait in the suite as soon as {@code elementMs} is raised.
+   *
+   * <p>Synchronized, and the flag is set <b>after</b> the value is applied. A compare-and-set that
+   * publishes the flag first lets a second thread past while the first is still reading config from
+   * disk, and that thread then asserts on the 5s default — a small window, but JUnit's parallel
+   * execution starts these threads together, so it is the normal case rather than a corner. Setting
+   * the flag last also means a config failure propagates instead of leaving every later thread
+   * silently on 5s.
+   */
+  private static synchronized void applyAssertionTimeoutOnce() {
+    if (assertionTimeoutApplied) {
+      return;
+    }
+    Config config = ConfigLoader.config();
+    PlaywrightAssertions.setDefaultAssertionTimeout(config.timeouts().elementMs());
+    assertionTimeoutApplied = true;
+  }
 
   /** The browser for the current thread, launched on first use. */
   public static Browser browser() {
+    applyAssertionTimeoutOnce();
+
     Browser existing = BROWSER.get();
     if (existing != null) {
       return existing;

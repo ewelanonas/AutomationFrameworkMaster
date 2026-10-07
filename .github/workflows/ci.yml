@@ -57,6 +57,12 @@ env:
   # C# module's in-process installer should not repeat the work.
   AF_SKIP_BROWSER_INSTALL: 'true'
   CI: 'true'
+  # A cold runner needs longer than a warm developer machine for the Angular SPA to
+  # become interactive. In run 37529901169 the first locator action after a navigation
+  # exhausted the 10s local budget in seven tests across both modules, while the API
+  # answered in ~1.4s. Raised through the config layer so nothing branches on the
+  # environment name in code; shared/environments/local.json keeps 10000 for local runs.
+  AF_TIMEOUTS_ELEMENTMS: '30000'
 
 jobs:
   # ---------------------------------------------------------------------------

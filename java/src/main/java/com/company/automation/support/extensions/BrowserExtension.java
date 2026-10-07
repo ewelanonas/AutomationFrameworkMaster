@@ -180,6 +180,7 @@ public final class BrowserExtension
     StringBuilder out = new StringBuilder();
     out.append("test: ").append(extensionContext.getDisplayName()).append('\n');
     out.append("runId: ").append(RunContext.runId()).append('\n');
+    out.append("processTag: ").append(RunContext.processTag()).append('\n');
     out.append("thread: ").append(Thread.currentThread().getName()).append('\n');
 
     try {
