@@ -1,0 +1,79 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "automation-framework"
+version = "0.1.0"
+description = "Python reference implementation of the AutomationFrameworkMaster test automation module."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "pytest>=8.4.2,<9",
+  "pytest-xdist==3.8.0",
+  "playwright==1.63.0",
+  "httpx==0.28.1",
+  "pydantic==2.13.5",
+  "faker==40.41.0",
+  "allure-pytest==2.16.2",
+  "jsonschema==4.26.0",
+  "referencing==0.37.0",
+  "filelock==4.0.12",
+]
+
+[dependency-groups]
+# types-jsonschema is a stub-only package, pinned to match jsonschema 4.26.0.
+# Without it, `mypy --strict` reports jsonschema as import-untyped, and the
+# alternative — ignore_missing_imports — would make every schema object Any,
+# which the no-Any-in-framework-code rule forbids.
+dev = ["ruff==0.16.10", "mypy==2.4.0", "types-jsonschema==4.26.0.20261006"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/framework"]
+
+[tool.pytest.ini_options]
+addopts = """-ra --strict-markers --strict-config --import-mode=importlib \
+  -m "not destructive and not quarantine" --alluredir=reports/allure-results"""
+testpaths = ["tests"]
+xfail_strict = true
+markers = [
+  "smoke: fast critical-path checks",
+  "regression: full functional coverage",
+  "contract: schema and contract verification",
+  "slow: excluded from the PR gate",
+  "destructive: burns a disposable resource on purpose; excluded by default",
+  "quarantine: known-unstable, excluded from every run; needs an owner, a ticket and a date",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E",
+  "F",
+  "I",
+  "B",
+  "UP",
+  "SIM",
+  "PT",
+  "RET",
+  "ARG",
+  "ASYNC",
+  "S",
+  "T20",
+  "C4",
+  "N",
+  "ANN",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.mypy]
+strict = true
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+explicit_package_bases = true
+mypy_path = "src"
