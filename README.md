@@ -33,18 +33,19 @@ See [Working with Kiro](#working-with-kiro).
 ## Current state
 
 The standards, the agent setup, and the shared contracts are in place on `master`,
-along with every module built so far. **The Java and C# modules are built and
-green** — both run from a single checkout:
+along with every module built so far. **The Java, C# and Python modules are built
+and green** — all three run from a single checkout:
 
 ```powershell
 git switch master
 
 mvn -f java/pom.xml -B clean test              # 33 tests, ~70s
 dotnet test csharp/AutomationFramework.sln     # 34 tests, ~12s
+uv run --directory python pytest -n auto       # 34 tests
 ```
 
-Python and TypeScript are not built yet. Run
-[workflow 1](#1-bootstrap-a-new-module) on `master` to add one.
+TypeScript is not built yet. Run
+[workflow 1](#1-bootstrap-a-new-module) on `master` to add it.
 
 | Piece | Status |
 | --- | --- |
@@ -53,10 +54,11 @@ Python and TypeScript are not built yet. Run
 | `docs/mcp/` + MCP config template | Ready |
 | `.env.example`, `.gitignore` | Ready |
 | `shared/environments/`, `shared/contracts/` | Ready — [demo target](#the-demo-target) |
-| `docs/decisions/` | Ready — 5 ADRs |
+| `docs/decisions/` | Ready — 7 ADRs |
 | `java/` on `master` | Ready — 33 tests |
 | `csharp/` on `master` | Ready — 34 tests |
-| `python/` `typescript/` | Not built yet |
+| `python/` on `master` | Ready — 34 tests |
+| `typescript/` | Not built yet |
 | `.github/workflows/ci.yml` | Ready — [see CI](#ci) |
 
 ## Branching model
@@ -146,10 +148,12 @@ AutomationFrameworkMaster/
 │   └── environments/     Non-secret env descriptors (URLs, timeouts)
 ├── docs/
 │   ├── mcp/              MCP server setup
-│   └── decisions/        ADRs: NNNN-short-title.md   (5 ADRs)
+│   └── decisions/        ADRs: NNNN-short-title.md   (7 ADRs)
 ├── .github/
 │   ├── workflows/ci.yml  CI
-│   └── scripts/          Standards gate + JUnit summary
+│   ├── scripts/          Standards gate + JUnit summary
+│   ├── actions/          Composite actions: start/stop the demo target
+│   └── docker/           docker-compose.ci.yml — the demo target, CI only
 ├── .env.example          Every variable the suites need
 └── .gitignore
 ```
@@ -648,10 +652,16 @@ then needs no change to the protection rules.
 
 ### Why smoke and not the full regression
 
-The suites run against a shared public sandbox, and at four workers our own load
-produced connection resets. See
-[ADR 0004](docs/decisions/0004-ci-runs-smoke-not-regression.md), which also covers
-what to change when you point the suites at an environment you own.
+Because a gate has to be fast enough that people wait for it. Breadth belongs in
+the nightly run, and at the API and contract level rather than in the browser.
+See [ADR 0004](docs/decisions/0004-ci-runs-smoke-not-regression.md).
+
+ADR 0004's *other* reason — politeness to a shared public sandbox that drew
+connection resets at four workers — no longer applies in CI, because each job now
+runs [its own copy of the application](#in-ci-we-run-the-application-ourselves).
+Raising parallelism and moving the full regression onto the pull request is now a
+decision about runner minutes, which is the change ADR 0004 said a real project
+should make.
 
 ---
 

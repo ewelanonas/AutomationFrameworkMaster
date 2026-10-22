@@ -2,6 +2,12 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-22
+- **Applies to:** `.github/workflows/ci.yml`, `.github/docker/`, `.github/actions/`,
+  `shared/environments/ci.json`
+- **Partly supersedes:** [ADR 0004](0004-ci-runs-smoke-not-regression.md). Its
+  shared-sandbox constraint, and the `concurrency` group that constraint
+  justified, do not survive this decision. Its smoke-gates/regression-nightly
+  decision does.
 
 ## Context
 
@@ -188,6 +194,6 @@ gap is worth naming rather than assuming away.
   paid against a gate that no longer serialises two suites.
 - **The module READMEs' "CI uses 30000" rows are corrected** alongside this ADR.
 - **The number `0007` is now taken**, so the redaction ADR that
-  `python/README.md` reserves as `0007-redaction-field-list-excludes-email-and-phone.md`
-  becomes **`0008`**. That README row is not edited here; the renumbering happens
-  when the ADR is written.
+  `python/README.md` reserved as `0007-redaction-field-list-excludes-email-and-phone.md`
+  becomes **`0008`**. That README row is renumbered, so the next person to write
+  the ADR reads the right number rather than discovering the collision.
