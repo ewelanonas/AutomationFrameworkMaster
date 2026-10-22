@@ -107,6 +107,7 @@ jobs:
     outputs:
       java: ${{ steps.modules.outputs.java }}
       csharp: ${{ steps.modules.outputs.csharp }}
+      python: ${{ steps.modules.outputs.python }}
       suite: ${{ steps.suite.outputs.suite }}
     steps:
       - name: Check out
@@ -125,6 +126,11 @@ jobs:
             echo "csharp=true" >> "$GITHUB_OUTPUT"
           else
             echo "csharp=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -f python/pyproject.toml ]; then
+            echo "python=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "python=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Which suite to run
@@ -157,6 +163,7 @@ jobs:
             echo "| Suite | ${{ steps.suite.outputs.suite }} |"
             echo "| Java module present | ${{ steps.modules.outputs.java }} |"
             echo "| C# module present | ${{ steps.modules.outputs.csharp }} |"
+            echo "| Python module present | ${{ steps.modules.outputs.python }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
@@ -381,13 +388,128 @@ jobs:
           if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------
+  # Python. Only on a branch that carries python/.
+  # ---------------------------------------------------------------------------
+  python:
+    name: Python suite
+    needs: [standards, detect]
+    if: needs.detect.outputs.python == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      # Immediately after checkout, so the image pull and the Angular first build
+      # overlap the sync and the lint pass rather than adding to them.
+      - name: Start the demo target
+        uses: ./.github/actions/start-demo-target
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          cache-dependency-glob: python/uv.lock
+
+      # python/.python-version pins 3.12; uv supplies the interpreter, so nothing
+      # here depends on the runner image's Python.
+      - name: Install CPython 3.12
+        run: uv python install 3.12
+
+      - name: Sync, locked
+        run: uv sync --directory python --locked
+
+      - name: Check lint and formatting
+        run: |
+          set -euo pipefail
+          uv run --directory python ruff check .
+          uv run --directory python ruff format --check .
+
+      # conftest.py is named explicitly: it is a top-level module rather than part of
+      # the framework package, and mypy does not pick it up from src/tests alone.
+      - name: Check types
+        run: uv run --directory python mypy src tests conftest.py
+
+      # Read from the installed distribution rather than grepped out of uv.lock, so
+      # the key can never describe a different version than the one that will run.
+      # The key shape matches the other two jobs.
+      - name: Resolve the Playwright version
+        id: playwright
+        run: |
+          set -euo pipefail
+          VERSION=$(uv run --directory python python -c \
+            "import importlib.metadata as m; print(m.version('playwright'))")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Playwright for Python: $VERSION"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Chromium and its OS dependencies
+        run: uv run --directory python playwright install --with-deps chromium
+
+      - name: Run the ${{ needs.detect.outputs.suite }} suite
+        env:
+          SUITE: ${{ needs.detect.outputs.suite }}
+        run: |
+          set -euo pipefail
+          # A -m on the command line REPLACES the one in addopts, so every string
+          # below spells out its exclusions. quarantine is excluded everywhere;
+          # destructive burns an account on purpose and stays out of every CI run,
+          # matching java/pom.xml's excludedGroups.
+          case "$SUITE" in
+            smoke)      MARKERS="smoke and not destructive and not quarantine" ;;
+            regression) MARKERS="regression and not destructive and not quarantine" ;;
+            all)        MARKERS="not destructive and not quarantine" ;;
+            *)          echo "Unknown suite: $SUITE" >&2; exit 1 ;;
+          esac
+          uv run --directory python pytest -m "$MARKERS" -n auto \
+            --junitxml=reports/junit.xml
+
+      - name: Summarise the results
+        if: always()
+        run: |
+          python3 .github/scripts/junit_summary.py \
+            "Python suite (${{ needs.detect.outputs.suite }})" \
+            python/reports/junit.xml
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-reports
+          path: |
+            python/reports/junit.xml
+            python/reports/allure-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      # Before the upload, so the container logs are on disk when it runs.
+      - name: Stop the demo target
+        if: always()
+        uses: ./.github/actions/stop-demo-target
+        with:
+          log-directory: python/reports/failure-artifacts
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-failure-artifacts
+          path: python/reports/failure-artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
   # The single required check. Branch protection points at this one job, so the
   # required-checks list does not need editing when a module is added or a job is
   # renamed.
   # ---------------------------------------------------------------------------
   gate:
     name: Gate
-    needs: [standards, detect, java, csharp]
+    needs: [standards, detect, java, csharp, python]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -397,15 +519,16 @@ jobs:
           STANDARDS: ${{ needs.standards.result }}
           JAVA: ${{ needs.java.result }}
           CSHARP: ${{ needs.csharp.result }}
+          PYTHON: ${{ needs.python.result }}
         run: |
           set -euo pipefail
-          echo "standards=$STANDARDS java=$JAVA csharp=$CSHARP"
+          echo "standards=$STANDARDS java=$JAVA csharp=$CSHARP python=$PYTHON"
 
           FAILED=0
           # A skipped module job is expected: it means that module is not on this
           # branch. Anything other than success or skipped is a failure, including
           # cancelled, so a cancelled run can never report green.
-          for RESULT in "$STANDARDS" "$JAVA" "$CSHARP"; do
+          for RESULT in "$STANDARDS" "$JAVA" "$CSHARP" "$PYTHON"; do
             case "$RESULT" in
               success|skipped) ;;
               *) FAILED=1 ;;
