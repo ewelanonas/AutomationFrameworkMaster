@@ -1,0 +1,106 @@
+# The Toolshop demo application, for CI only.
+#
+# Why this exists: practicesoftwaretesting.com answers GitHub Actions traffic with
+# HTTP 403 and cf-mitigated: challenge, so the Angular app never renders and every
+# getByTestId times out. Running the application here removes the far end entirely.
+# See docs/decisions/0007-self-hosted-demo-target.md.
+#
+# Local runs do NOT need this file. shared/environments/local.json still points at
+# the public sandbox; Docker is not a prerequisite for running a suite locally.
+#
+# Every image is pinned by digest. The tag is kept where upstream publishes one
+# because it documents intent; the digest is what makes the pull immutable.
+#
+# DELIBERATELY ABSENT: the upstream `cron` service. It runs the Laravel scheduler,
+# which executes `migrate:fresh --seed --force` HOURLY in a production environment.
+# That is how the public sandbox resets itself, and in CI it could drop the database
+# underneath a running suite. Do not add it.
+name: toolshop
+
+services:
+  # The database. Not published: nothing outside the compose network talks to it.
+  #
+  # MYSQL_USER/MYSQL_PASSWORD/MYSQL_ROOT_PASSWORD below are throwaway values for a
+  # container that is created, seeded, read and destroyed inside one ~4 minute CI job,
+  # reachable only from the other containers on a private compose network. They are
+  # not a credential in any meaningful sense, which is why the value is supplied by
+  # the workflow and this file holds no literal. MYSQL_USER must stay `user` and
+  # MYSQL_DATABASE must stay `toolshop` unless DB_USERNAME/DB_DATABASE on the API
+  # are overridden to match.
+  mariadb:
+    image: yobasystems/alpine-mariadb:10.6.11@sha256:8bb25ca2d68c81118fcf745959560de2f316a178abf9decc8bb5b6f86c929084
+    environment:
+      MYSQL_DATABASE: toolshop
+      MYSQL_USER: user
+      MYSQL_PASSWORD: ${TOOLSHOP_DB_PASSWORD:?TOOLSHOP_DB_PASSWORD must be set by the workflow}
+      MYSQL_ROOT_PASSWORD: ${TOOLSHOP_DB_PASSWORD:?TOOLSHOP_DB_PASSWORD must be set by the workflow}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysqladmin ping -h 127.0.0.1 -u root -p"$$MYSQL_ROOT_PASSWORD" --silent
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 15s
+
+  # PHP-FPM only. This image serves no HTTP at all, which is why `web` is required.
+  #
+  # APP_ENV/APP_DEBUG deliberately differ from the shipped .env (local/true): the live
+  # instance reports environment=production, and three tests inspect error bodies for
+  # leaked internals. Matching live is both safer and more faithful. The consequence is
+  # that migrate:fresh needs --force, because it prompts in a production environment.
+  #
+  # Laravel's dotenv loader does not overwrite a variable that already exists in the
+  # process environment, so DB_HOST=mariadb here wins over the image's own .env.
+  laravel-api:
+    image: testsmith/practice-software-testing-sprint5-api:2.5@sha256:881cb7ecd76477994728648c0c16f6e9d2beed0f0217734843a32a7bb92553f0
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      APP_DEBUG: 'false'
+      DB_CONNECTION: mysql
+      DB_HOST: mariadb
+      DB_PORT: '3306'
+      DB_DATABASE: toolshop
+      DB_USERNAME: user
+      DB_PASSWORD: ${TOOLSHOP_DB_PASSWORD:?TOOLSHOP_DB_PASSWORD must be set by the workflow}
+      # Mail is queued to the database rather than sent inline, and no test asserts on
+      # mail, so `log` removes the mailcatcher question entirely.
+      MAIL_MAILER: log
+      DISABLE_LOGGING: 'true'
+    volumes:
+      - laravel-app-code:/var/www
+
+  # nginx, with a vhost whose FastCGI upstream is laravel-api:9000 and whose document
+  # root is /var/www/public. It listens on 80 only — port 81 belongs to PHPMyAdmin in
+  # the dev vhost and binds nothing here.
+  #
+  # The code volume is mounted read-only so nginx can serve static files rather than
+  # falling through try_files to /index.php for everything. Upstream's prod compose
+  # file omits it; this costs nothing and removes a class of confusing 404.
+  web:
+    image: testsmith/practice-software-testing-web@sha256:950bafdc86501002c381e35d9b70e298fe211f4ab1fbfda334b67f03dffa048d
+    depends_on:
+      laravel-api:
+        condition: service_started
+    ports:
+      - '8091:80'
+    volumes:
+      - laravel-app-code:/var/www:ro
+
+  # The Angular application. Its image CMD is already `ng serve --host 0.0.0.0 --port
+  # 4200`, so the published port must be 4200 and the first request waits on the first
+  # build. It needs no environment: the development environment file has the API URL
+  # compiled in as http://localhost:8091, which is why `web` publishes exactly that
+  # host port. The browser runs on the runner host, not in a container.
+  angular-ui:
+    image: testsmith/practice-software-testing-sprint5-ui:2.5@sha256:f907d8daae32dc90ba900e964928d00bf0aabfab7067eaeeaa49f5a0f70c52e6
+    ports:
+      - '4200:4200'
+
+# Initialised from the API image when the API container is created, then shared with
+# nginx. Dropped by `docker compose down -v` so a warm runner cannot reuse stale code.
+volumes:
+  laravel-app-code:

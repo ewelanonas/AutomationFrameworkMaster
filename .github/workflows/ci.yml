@@ -6,13 +6,18 @@ name: CI
 # views, so this file cannot assume which modules are present. The `detect` job looks
 # for each one and the module jobs are gated on what it finds:
 #
-#   on master           -> `standards` + `java` + `csharp`
+#   on master           -> `standards` + `java` + `csharp` + `python`
 #   on framework/java   -> `standards` + `java`
 #   on framework/csharp -> `standards` + `csharp`
+#   on framework/python -> `standards` + `python`
 #
 # That detection was written when the modules lived only on separate branches. It
 # needed no change when they were consolidated onto master, which is the argument for
 # detecting what is present rather than hardcoding a branch-to-module map.
+#
+# Every module job runs the demo application itself, as containers on its own runner,
+# and points the suites at loopback. A local run needs none of that: it keeps
+# AF_ENV=local and the public sandbox, so Docker is not a prerequisite for a developer.
 #
 # No secrets are required. Both suites register their own throwaway accounts over the
 # API, so a fork pull request runs the full gate with nothing injected.
@@ -38,8 +43,10 @@ on:
     # Nightly. Off the hour to avoid the scheduling stampede on shared runners.
     - cron: '17 2 * * *'
 
-# Supersede in-flight runs for the same ref. Without this, pushing twice in a minute
-# has two runs competing for the same shared demo target and both flake.
+# Supersede in-flight runs for the same ref: a push that lands while the previous one
+# is still running makes that run's result irrelevant, and every module job now holds
+# a runner for its own container stack. Each run brings up its own target on its own
+# runner, so this is about not burning runner time, not about contention.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -57,12 +64,20 @@ env:
   # C# module's in-process installer should not repeat the work.
   AF_SKIP_BROWSER_INSTALL: 'true'
   CI: 'true'
-  # A cold runner needs longer than a warm developer machine for the Angular SPA to
-  # become interactive. In run 37529901169 the first locator action after a navigation
-  # exhausted the 10s local budget in seven tests across both modules, while the API
-  # answered in ~1.4s. Raised through the config layer so nothing branches on the
-  # environment name in code; shared/environments/local.json keeps 10000 for local runs.
-  AF_TIMEOUTS_ELEMENTMS: '30000'
+  # Every job runs the application itself, as containers on its own runner, and points
+  # the suites at loopback. shared/environments/ci.json holds the URLs and timeouts.
+  # Local runs keep AF_ENV=local and the public sandbox; Docker is not a prerequisite
+  # for running a suite on a developer machine.
+  AF_ENV: ci
+  # docker compose reads this natively, so no step needs -f and the path lives in one
+  # place. The compose file's own `name:` supplies the project name.
+  COMPOSE_FILE: .github/docker/docker-compose.ci.yml
+  # Not a secret. The mariadb container is created, seeded, read and destroyed inside
+  # one job; it publishes no port, so this password is reachable only from the two
+  # other containers on a private compose network. It lives here rather than in the
+  # compose file so that no committed file reads like a credential store, and so the
+  # two services that must agree on it read one value.
+  TOOLSHOP_DB_PASSWORD: changeme-ci-local
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -153,20 +168,14 @@ jobs:
     if: needs.detect.outputs.java == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # Both suites share one public demo target, and on master both now run in the same
-    # workflow run. A shared job-level concurrency group makes them queue instead of
-    # hitting it together: at four concurrent workers the C# suite already drew
-    # ERR_CONNECTION_RESET and SSL failures from the far end, caused entirely by our
-    # own load, and two suites at once is the same mistake at a larger scale.
-    #
-    # Scoped to the run, so branches do not block each other. `needs:` would also
-    # serialise them, but it would skip C# whenever Java failed and lose that result.
-    concurrency:
-      group: demo-target-${{ github.run_id }}
-      cancel-in-progress: false
     steps:
       - name: Check out
         uses: actions/checkout@v7
+
+      # Immediately after checkout, so the image pull and the Angular first build
+      # overlap the Maven work rather than adding to it.
+      - name: Start the demo target
+        uses: ./.github/actions/start-demo-target
 
       - name: Set up JDK 17
         uses: actions/setup-java@v6
@@ -236,6 +245,13 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
+      # Before the upload, so the container logs are on disk when it runs.
+      - name: Stop the demo target
+        if: always()
+        uses: ./.github/actions/stop-demo-target
+        with:
+          log-directory: java/target/failure-artifacts
+
       # Traces are large, so they get a shorter retention than the reports and are
       # only produced on failure in the first place.
       - name: Upload failure artifacts
@@ -256,13 +272,14 @@ jobs:
     if: needs.detect.outputs.csharp == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # Same group as the Java job. See the comment there for why.
-    concurrency:
-      group: demo-target-${{ github.run_id }}
-      cancel-in-progress: false
     steps:
       - name: Check out
         uses: actions/checkout@v7
+
+      # Immediately after checkout, so the image pull and the Angular first build
+      # overlap the restore and build rather than adding to them.
+      - name: Start the demo target
+        uses: ./.github/actions/start-demo-target
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
@@ -346,6 +363,13 @@ jobs:
             csharp/tests/AutomationFramework.Tests/bin/Debug/net8.0/allure-results/
           retention-days: 30
           if-no-files-found: warn
+
+      # Before the upload, so the container logs are on disk when it runs.
+      - name: Stop the demo target
+        if: always()
+        uses: ./.github/actions/stop-demo-target
+        with:
+          log-directory: csharp/TestResults/failure-artifacts
 
       - name: Upload failure artifacts
         if: failure()

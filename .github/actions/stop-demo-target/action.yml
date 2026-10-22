@@ -1,0 +1,31 @@
+name: Stop the demo target
+description: Captures the container logs as a failure artifact, then removes the stack and its volumes.
+
+inputs:
+  log-directory:
+    description: Where to write demo-target.log. Use the module's failure-artifacts directory so the existing upload step collects it.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Always written, never conditional on job status: a composite action cannot read
+    # the job result reliably, and the file is kilobytes. The upload step that collects
+    # it is already `if: failure()`, so a green run uploads nothing.
+    - name: Capture the container logs
+      shell: bash
+      env:
+        LOG_DIRECTORY: ${{ inputs.log-directory }}
+      run: |
+        set -euo pipefail
+        mkdir -p "$LOG_DIRECTORY"
+        docker compose logs --no-color --timestamps > "$LOG_DIRECTORY/demo-target.log" 2>&1 || true
+        docker compose ps >> "$LOG_DIRECTORY/demo-target.log" 2>&1 || true
+
+    # -v drops the named code volume. Without it a re-run on a warm runner could pick
+    # up stale application code.
+    - name: Remove the stack
+      shell: bash
+      run: |
+        set -euo pipefail
+        docker compose down -v --remove-orphans

@@ -1,0 +1,149 @@
+name: Start the demo target
+description: >
+  Brings up the Toolshop demo application as containers on the runner, seeds the
+  database, and waits on data-level readiness gates. CI only; local runs use the
+  public sandbox.
+
+inputs:
+  api-base-url:
+    description: Where the API answers once `web` is up. Must match the URL compiled into the UI image.
+    required: false
+    default: http://localhost:8091
+  ui-base-url:
+    description: Where the Angular dev server answers once its first build finishes.
+    required: false
+    default: http://localhost:4200
+  api-timeout-seconds:
+    description: Budget for PHP-FPM plus nginx to answer /status.
+    required: false
+    default: '120'
+  ui-timeout-seconds:
+    description: Budget for the Angular dev server's first build. The slowest gate.
+    required: false
+    default: '300'
+
+runs:
+  using: composite
+  steps:
+    # COMPOSE_FILE is set once in the workflow env block, so no step here needs -f.
+    - name: Check the stack inputs
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -z "${COMPOSE_FILE:-}" ]; then
+          echo "::error::COMPOSE_FILE is not set. The workflow env block must point it at .github/docker/docker-compose.ci.yml"
+          exit 1
+        fi
+        if [ -z "${TOOLSHOP_DB_PASSWORD:-}" ]; then
+          echo "::error::TOOLSHOP_DB_PASSWORD is not set. The workflow env block supplies it; it is a throwaway container-local value, not a secret."
+          exit 1
+        fi
+        docker compose version
+
+    # --wait blocks until every service with a healthcheck is healthy, which is
+    # readiness gate 1 (mariadb) expressed declaratively.
+    - name: Bring the containers up
+      shell: bash
+      run: |
+        set -euo pipefail
+        docker compose up -d --quiet-pull --wait --wait-timeout 300
+
+    - name: Wait for the API to answer
+      shell: bash
+      env:
+        API_BASE_URL: ${{ inputs.api-base-url }}
+        TIMEOUT_SECONDS: ${{ inputs.api-timeout-seconds }}
+      run: |
+        set -euo pipefail
+        DEADLINE=$(( $(date +%s) + TIMEOUT_SECONDS ))
+        while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+          if curl -fsS --max-time 5 "$API_BASE_URL/status" > /tmp/status.json; then
+            echo "API answered: $(cat /tmp/status.json)"
+            exit 0
+          fi
+          sleep 2
+        done
+        echo "::error::The API did not answer $API_BASE_URL/status within ${TIMEOUT_SECONDS}s."
+        docker compose ps
+        docker compose logs --no-color --tail 200 web laravel-api mariadb
+        exit 1
+
+    # Synchronous and single-shot. If artisan exits non-zero the job stops here, so no
+    # polling is needed for the command itself. --force is required because APP_ENV is
+    # production; without it migrate:fresh prompts and hangs.
+    #
+    # `fresh` rather than `refresh`: the container starts empty, so dropping every
+    # table and re-running all 32 migrations is the honest reset.
+    - name: Migrate and seed the database
+      shell: bash
+      run: |
+        set -euo pipefail
+        if ! docker compose exec -T laravel-api php artisan migrate:fresh --seed --force; then
+          # The backticks are escaped because this is a double-quoted bash string:
+          # unescaped, `user` would be run as a command instead of printed.
+          echo "::error::Seeding failed. If the message is a database access or unknown-database error, the mariadb healthcheck passed before its init SQL created the toolshop database and the \`user\` account. The fix is a stronger healthcheck (a SELECT against toolshop as \`user\`), NOT a retry around this command."
+          docker compose logs --no-color --tail 200 mariadb laravel-api
+          exit 1
+        fi
+
+    # A data-level gate, deliberately stronger than a liveness probe: /status 200 only
+    # proves PHP-FPM is up, not that the catalogue exists.
+    - name: Wait for the catalogue to be populated
+      shell: bash
+      env:
+        API_BASE_URL: ${{ inputs.api-base-url }}
+      run: |
+        set -euo pipefail
+        DEADLINE=$(( $(date +%s) + 60 ))
+        while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+          if curl -fsS --max-time 5 "$API_BASE_URL/products?page=1" > /tmp/products.json; then
+            TOTAL=$(jq -r '.total // 0' /tmp/products.json)
+            if [ "$TOTAL" -gt 0 ]; then
+              echo "Catalogue ready: total=$TOTAL per_page=$(jq -r '.per_page' /tmp/products.json)"
+              exit 0
+            fi
+          fi
+          sleep 2
+        done
+        echo "::error::The catalogue is empty after seeding."
+        docker compose logs --no-color --tail 200 laravel-api mariadb
+        exit 1
+
+    - name: Wait for the Angular dev server
+      shell: bash
+      env:
+        UI_BASE_URL: ${{ inputs.ui-base-url }}
+        TIMEOUT_SECONDS: ${{ inputs.ui-timeout-seconds }}
+      run: |
+        set -euo pipefail
+        DEADLINE=$(( $(date +%s) + TIMEOUT_SECONDS ))
+        while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+          if curl -fsS --max-time 5 -o /dev/null "$UI_BASE_URL"; then
+            echo "UI answered at $UI_BASE_URL"
+            exit 0
+          fi
+          sleep 2
+        done
+        echo "::error::The Angular dev server did not answer $UI_BASE_URL within ${TIMEOUT_SECONDS}s. It serves nothing until its first build completes."
+        docker compose logs --no-color --tail 200 angular-ui
+        exit 1
+
+    # Printed into the summary so that bumping an image pin shows up as a changed
+    # version line rather than as a mystery test failure.
+    - name: Record what the target reports
+      shell: bash
+      env:
+        API_BASE_URL: ${{ inputs.api-base-url }}
+        UI_BASE_URL: ${{ inputs.ui-base-url }}
+      run: |
+        set -euo pipefail
+        {
+          echo "## Demo target"
+          echo ""
+          echo "| Item | Value |"
+          echo "| --- | --- |"
+          echo "| UI | $UI_BASE_URL |"
+          echo "| API | $API_BASE_URL |"
+          echo "| /status | $(curl -fsS --max-time 5 "$API_BASE_URL/status" | tr -d '\n') |"
+          echo "| Products | $(jq -r '.total' /tmp/products.json) |"
+        } >> "$GITHUB_STEP_SUMMARY"
