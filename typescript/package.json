@@ -1,0 +1,34 @@
+{
+  "name": "automation-framework-typescript",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.20.0",
+  "engines": {
+    "node": ">=22.13.0",
+    "pnpm": ">=10.20.0"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:regression": "playwright test --grep @regression",
+    "test:contract": "playwright test --grep @contract",
+    "test:destructive": "playwright test --grep @destructive --grep-invert @quarantine",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && prettier --check .",
+    "lint:fix": "eslint . --fix && prettier --write ."
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@faker-js/faker": "10.6.0",
+    "@playwright/test": "1.64.1",
+    "@types/node": "22.20.5",
+    "ajv": "8.20.0",
+    "allure-playwright": "3.13.0",
+    "eslint": "10.12.0",
+    "eslint-plugin-playwright": "2.12.1",
+    "prettier": "3.9.10",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.2",
+    "zod": "4.6.7"
+  }
+}
