@@ -74,14 +74,21 @@ services:
       - laravel-app-code:/var/www
 
   # nginx, with a vhost whose FastCGI upstream is laravel-api:9000 and whose document
-  # root is /var/www/public. It listens on 80 only — port 81 belongs to PHPMyAdmin in
-  # the dev vhost and binds nothing here.
+  # root is /var/www/public.
+  #
+  # NOT upstream's `practice-software-testing-web` image. That image exists only for
+  # linux/arm64 — no amd64 variant, no other tag — so on a GitHub-hosted amd64 runner
+  # it started and died immediately with exit 255 and "the requested image's platform
+  # (linux/arm64) does not match the detected host platform (linux/amd64)". Every
+  # other image in this file is amd64, so `web` was the lone blocker. Stock nginx plus
+  # the fifteen-line vhost in nginx-toolshop.conf costs less than emulating an
+  # architecture, and the digest below is the multi-arch manifest list, so this also
+  # works on an arm64 machine. See that file for the full reasoning.
   #
   # The code volume is mounted read-only so nginx can serve static files rather than
-  # falling through try_files to /index.php for everything. Upstream's prod compose
-  # file omits it; this costs nothing and removes a class of confusing 404.
+  # falling through try_files to /index.php for everything.
   web:
-    image: testsmith/practice-software-testing-web@sha256:950bafdc86501002c381e35d9b70e298fe211f4ab1fbfda334b67f03dffa048d
+    image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
     depends_on:
       laravel-api:
         condition: service_started
@@ -89,6 +96,7 @@ services:
       - '8091:80'
     volumes:
       - laravel-app-code:/var/www:ro
+      - ./nginx-toolshop.conf:/etc/nginx/conf.d/default.conf:ro
 
   # The Angular application. Its image CMD is already `ng serve --host 0.0.0.0 --port
   # 4200`, so the published port must be 4200 and the first request waits on the first
