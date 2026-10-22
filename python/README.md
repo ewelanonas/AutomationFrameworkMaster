@@ -92,7 +92,7 @@ no page object reads an environment variable directly.
 | `AF_BROWSER=firefox` | `chromium` \| `firefox` \| `webkit` |
 | `AF_DATA_SEED=<n>` | Reproduce a run's generated data exactly. The seed used is logged at startup and written to the Allure environment block as `dataSeed` |
 | `AF_RUN_ID=<id>` | Reuse a run id, to target data a previous run created |
-| `AF_TIMEOUTS_ELEMENTMS=<ms>` | Override the element and assertion timeout. CI uses 30000 |
+| `AF_TIMEOUTS_ELEMENTMS=<ms>` | Override the element and assertion timeout. CI sets no override and resolves it from `shared/environments/ci.json`, which keeps 10000 |
 | `AF_TIMEOUTS_NAVIGATIONMS`, `AF_TIMEOUTS_APIMS`, `AF_TIMEOUTS_WORKFLOWMS` | The other three budgets |
 
 A malformed or out-of-range `AF_TIMEOUTS_*` value **stops the run** rather than

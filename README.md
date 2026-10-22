@@ -488,6 +488,45 @@ than tidying up.
 To point a module at your own application instead, change
 `shared/environments/local.json` or set `AF_UI_BASEURL` / `AF_API_BASEURL`.
 
+#### In CI, we run the application ourselves
+
+The public sandbox answers GitHub Actions egress with HTTP 403 and
+`cf-mitigated: challenge` — a bot challenge, served instead of the app — so the
+Angular bundle never loads and every `getByTestId` times out. CI therefore
+brings the application up on the runner instead, as four digest-pinned
+containers:
+
+| | |
+| --- | --- |
+| Stack | `mariadb`, `laravel-api` (PHP-FPM), `web` (nginx), `angular-ui` |
+| Compose file | `.github/docker/docker-compose.ci.yml` |
+| UI | `http://localhost:4200` |
+| API | `http://localhost:8091` |
+| Selected by | `AF_ENV=ci` → `shared/environments/ci.json` |
+
+Each module job starts its own stack, seeds it, and tears it down, through the
+composite actions in `.github/actions/{start,stop}-demo-target`.
+
+**Local runs are unchanged, and Docker is not a prerequisite for them.**
+`AF_ENV=local` still points at the public sandbox, which is what every
+documented local command uses. If you want the identical target locally:
+
+```powershell
+$env:TOOLSHOP_DB_PASSWORD='changeme-local'
+docker compose -f .github/docker/docker-compose.ci.yml up -d --wait
+$env:AF_ENV='ci'
+# ... run a suite ...
+docker compose -f .github/docker/docker-compose.ci.yml down -v
+```
+
+On the licence, as the upstream terms read rather than as legal advice:
+upstream permits private, internal and non-commercial use, and reserves
+commercial use, hosting and redistribution. This repo is a learning template
+for students, so CI pulls the public images directly and **never mirrors them
+to GHCR or any other registry**. A team doing commercial work points
+`AF_UI_BASEURL` / `AF_API_BASEURL` at its own application under test instead.
+Full reasoning in [ADR 0007](docs/decisions/0007-self-hosted-demo-target.md).
+
 ### Environment
 
 ```powershell
@@ -505,10 +544,14 @@ defaults a base URL to production.
 The timeout policy is overridable the same way, with `AF_TIMEOUTS_ELEMENTMS`,
 `AF_TIMEOUTS_NAVIGATIONMS`, `AF_TIMEOUTS_APIMS` and `AF_TIMEOUTS_WORKFLOWMS`
 (milliseconds, 1000–600000; a malformed or out-of-range value fails the run
-rather than being ignored). CI sets `AF_TIMEOUTS_ELEMENTMS=30000` because a
-cold runner needs longer for the SPA to become interactive;
-`shared/environments/local.json` keeps 10000, so local runs keep the fast
-feedback loop. Nothing branches on the environment name in code.
+rather than being ignored). **CI sets none of them.** It resolves timeouts from
+`shared/environments/ci.json`, which keeps the same 10s element budget
+`local.json` uses — the runner talks to loopback, not to a remote sandbox. CI
+used to raise that value to 30000 for a cold-start theory the trace disproved;
+the variable had to be removed rather than just left unset, because an `AF_*`
+process variable outranks the descriptor
+([ADR 0007](docs/decisions/0007-self-hosted-demo-target.md)). Nothing branches
+on the environment name in code.
 
 ### MCP servers (optional but recommended)
 
@@ -540,7 +583,7 @@ for each module rather than assuming which ones are present:
 
 | Branch | Jobs that run |
 | --- | --- |
-| `master` | `standards`, `java`, `csharp` |
+| `master` | `standards`, `java`, `csharp`, `python` |
 | `framework/java` | `standards`, `java` |
 | `framework/csharp` | `standards`, `csharp` |
 
@@ -554,20 +597,16 @@ rather than mapping branches to modules is what made the restructure cheap.
 | nightly schedule | regression |
 | manual dispatch | your choice of smoke, regression or all |
 
-**No secrets are required.** Both suites register their own throwaway accounts, so
+**No secrets are required.** Every suite registers its own throwaway accounts, so
 a fork pull request runs the complete gate with nothing injected.
 
-**The two module jobs queue rather than run together.** They share one job-level
-concurrency group scoped to the run, because they also share one public demo
-target. At four concurrent workers the C# suite already drew connection resets and
-SSL failures out of that sandbox, caused entirely by our own load; two suites at
-once is the same mistake at a larger scale. This roughly doubles gate time on
-`master`, which is the price of not being the reason the target falls over.
-
-Worth knowing why this is not `needs: [java]` on the C# job: that would also
-serialise them, but it would **skip** C# whenever Java failed, and you would lose
-the C# result exactly when you most want to know whether the breakage is
-cross-module.
+**The module jobs run in parallel.** They used to share one job-level concurrency
+group, because they also shared one public demo target and at four concurrent
+workers our own load drew connection resets out of that sandbox. Each job now
+brings up [its own copy of the application](#in-ci-we-run-the-application-ourselves)
+on its own runner, so there is no shared resource left to serialise them for. The
+group is gone and gate time on `master` is back to the slowest single module
+rather than the sum.
 
 ### The `standards` job
 

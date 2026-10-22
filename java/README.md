@@ -52,7 +52,7 @@ Quarantined tests are excluded from every run by default, via
 | `-Dsurefire.rerunFailingTestsCount=0` | Confirm a flake is real (already the default) |
 | `AF_DATA_SEED=<n>` | Reproduce a run's generated data exactly |
 | `AF_RUN_ID=<id>` | Reuse a run id, to target data a previous run created |
-| `AF_TIMEOUTS_ELEMENTMS=<ms>` | Override the element/assertion timeout (1000–600000). CI uses 30000 |
+| `AF_TIMEOUTS_ELEMENTMS=<ms>` | Override the element/assertion timeout (1000–600000). CI sets no override and resolves it from `shared/environments/ci.json`, which keeps 10000 |
 
 ### Reports
 

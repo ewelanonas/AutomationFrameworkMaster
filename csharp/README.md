@@ -45,7 +45,7 @@ dotnet test csharp/AutomationFramework.sln --no-build --filter "FullyQualifiedNa
 | `$env:AF_HEADLESS='false'` | Watch the browser. Run it yourself; it blocks. |
 | `$env:AF_DATA_SEED=<n>` | Reproduce a run's generated data exactly |
 | `$env:AF_RUN_ID=<id>` | Reuse a run id, to target data a previous run created |
-| `$env:AF_TIMEOUTS_ELEMENTMS=<ms>` | Override the element/expect timeout (1000–600000). CI uses 30000 |
+| `$env:AF_TIMEOUTS_ELEMENTMS=<ms>` | Override the element/expect timeout (1000–600000). CI sets no override and resolves it from `shared/environments/ci.json`, which keeps 10000 |
 | `$env:AF_SKIP_BROWSER_INSTALL='true'` | Skip the install check in CI, where the browser is cached |
 
 ### Reports
