@@ -1,5 +1,6 @@
 package com.company.automation.pages;
 
+import com.company.automation.support.Navigation;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import java.util.ArrayList;
@@ -46,7 +47,7 @@ public final class HomePage {
 
   /** Opens the catalogue. The base URL comes from config, so no absolute URL appears here. */
   public HomePage open() {
-    page.navigate("/");
+    Navigation.to(page, "/");
     return this;
   }
 

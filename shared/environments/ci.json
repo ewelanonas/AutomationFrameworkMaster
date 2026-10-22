@@ -1,0 +1,28 @@
+{
+  "name": "ci",
+  "description": "Toolshop demo application running as containers on the CI runner. URLs are loopback because the suites and the browser share the runner host. Non-secret values only — credentials come from AF_* environment variables.",
+  "ui": {
+    "baseUrl": "http://localhost:4200",
+    "locale": "en-US",
+    "timezoneId": "UTC",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    }
+  },
+  "api": {
+    "baseUrl": "http://localhost:8091",
+    "loginPath": "/users/login"
+  },
+  "timeouts": {
+    "elementMs": 10000,
+    "navigationMs": 30000,
+    "apiMs": 30000,
+    "workflowMs": 60000
+  },
+  "execution": {
+    "headless": true,
+    "browser": "chromium",
+    "testIdAttribute": "data-test"
+  }
+}

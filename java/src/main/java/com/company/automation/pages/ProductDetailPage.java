@@ -1,5 +1,6 @@
 package com.company.automation.pages;
 
+import com.company.automation.support.Navigation;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import java.util.ArrayList;
@@ -45,7 +46,7 @@ public final class ProductDetailPage {
 
   /** Opens a product directly by id, skipping the catalogue. */
   public ProductDetailPage open(String productId) {
-    page.navigate(PATH_PREFIX + productId);
+    Navigation.to(page, PATH_PREFIX + productId);
     return this;
   }
 
