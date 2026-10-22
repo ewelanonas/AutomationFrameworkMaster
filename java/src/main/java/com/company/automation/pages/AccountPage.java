@@ -1,5 +1,6 @@
 package com.company.automation.pages;
 
+import com.company.automation.support.Navigation;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 
@@ -31,7 +32,7 @@ public final class AccountPage {
   }
 
   public AccountPage open() {
-    page.navigate(PATH);
+    Navigation.to(page, PATH);
     return this;
   }
 
