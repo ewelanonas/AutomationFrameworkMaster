@@ -1,0 +1,13 @@
+{
+  "name": "review-fixture",
+  "description": "Owned by tests/support/config.spec.ts. Not for running a suite against. resolveConfig reads this file with JSON.parse, so it must stay plain JSON with no comments. Both base URLs are required because case 3 supplies no other source and a missing base URL is fatal; port 1 on loopback is unroutable by construction, so this descriptor can never point a run at a real target.",
+  "ui": {
+    "baseUrl": "http://127.0.0.1:1/ui"
+  },
+  "api": {
+    "baseUrl": "http://127.0.0.1:1/api"
+  },
+  "timeouts": {
+    "elementMs": 7000
+  }
+}

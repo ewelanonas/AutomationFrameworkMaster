@@ -19,6 +19,7 @@ import { randomInt } from 'node:crypto';
 import { Faker, en } from '@faker-js/faker';
 
 import { nextSequence, processTag, runId } from './runContext';
+import * as testLog from './testLog';
 
 /**
  * `AF_DATA_SEED` when set, otherwise a fresh random one.
@@ -51,6 +52,21 @@ FAKER.seed(SEED);
 /** The seed this run is using. Written to the Allure environment block as `dataSeed`. */
 export function seed(): number {
   return SEED;
+}
+
+/**
+ * Reports the seed. Called from `global.setup.ts`, never at import.
+ *
+ * Resolution and reporting are separate functions deliberately, matching
+ * `test_values.py`: `SEED` is computed at import, while the line that makes the
+ * seed verifiable is emitted once per run from the one place that runs in the main
+ * process before workers fork.
+ */
+export function logSeed(): void {
+  testLog.info(
+    `Test data seed: ${String(SEED)}. Set AF_DATA_SEED=${String(SEED)} to reproduce ` +
+      "this run's generated data.",
+  );
 }
 
 /**
