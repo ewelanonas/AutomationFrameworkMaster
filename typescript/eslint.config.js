@@ -107,16 +107,27 @@ export default ts.config(
     rules: { 'no-empty-pattern': 'off', 'playwright/no-standalone-expect': 'off' },
   },
 
-  // The same `no-empty-pattern` exemption, for the same reason, for the one file
-  // under src/ that declares fixtures: `appConfig` and `consoleErrors` depend on no
-  // other fixture, so both are written in Playwright's documented
-  // `async ({}, use)` shape. The Playwright preset is not registered for src/, so
-  // its rule is not named here — turning off a rule whose plugin is not loaded in
-  // the same config object is an error, not a no-op. Scoped to this one file;
-  // never a global disable, never a per-line one.
+  // Two rules, one file: the module's only fixture-declaring file under src/.
+  //
+  // `no-empty-pattern` — `appConfig` and `consoleErrors` depend on no other fixture,
+  // so both are written in Playwright's documented `async ({}, use)` shape.
+  //
+  // `no-invalid-void-type` — `failureArtifacts: void` is Playwright's documented
+  // shape for an auto fixture that provides no value, and it is load-bearing rather
+  // than cosmetic: a fixture typed `undefined` makes `use()`'s parameter required,
+  // so the fixture body would have to pass a value it does not have. The rule is
+  // right about ordinary code and wrong about this API.
+  //
+  // The Playwright preset is not registered for src/, so none of its rules is named
+  // here — turning off a rule whose plugin is not loaded in the same config object is
+  // an error, not a no-op. Scoped to this one file; never a global disable, never a
+  // per-line one.
   {
     files: ['src/support/fixtures.ts'],
-    rules: { 'no-empty-pattern': 'off' },
+    rules: {
+      'no-empty-pattern': 'off',
+      '@typescript-eslint/no-invalid-void-type': 'off',
+    },
   },
 
   { files: ['**/*.js'], extends: [ts.configs.disableTypeChecked] },

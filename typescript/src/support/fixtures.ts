@@ -44,6 +44,8 @@ import type { TestAccount } from '@models/testAccount';
 
 import { ApiHttp } from './apiHttp';
 import { loadConfig, type AppConfig } from './config';
+import * as reporting from './reporting';
+import * as testLog from './testLog';
 import { playwrightTimeouts } from './timeouts';
 
 export type BaseFixtures = {
@@ -142,6 +144,59 @@ export const test = base.extend<BaseFixtures>({
 
     await use(page);
   },
+});
+
+export type UiFixtures = {
+  failureArtifacts: void;
+};
+
+/**
+ * The test object the two UI spec files import, as `uiTest as test`.
+ *
+ * `failureArtifacts` is the **only auto fixture in the module** and it lives here
+ * alone. An auto fixture runs for every test that inherits it whether or not the
+ * test asks for it, and this one asks for `page` — declared on the base object it
+ * would launch a browser for all 48 cases, including the 19 API, 6 contract and 14
+ * framework-internal ones that never open a page. Stated explicitly because the
+ * naive version of this fixture is a much slower suite with no visible cause.
+ *
+ * It is auto for the reason Python's `run_metadata` is: nothing requests it, and a
+ * fixture nobody requests never runs.
+ *
+ * Two ordering facts Playwright hands over for free. **The page is still open**:
+ * fixture teardown runs before Playwright closes the context, so the DOM snapshot
+ * and the diagnostics both see a live page. **Setup failures are reported as
+ * failures**: `testInfo.status` is `failed` when a *fixture* threw —
+ * `disposableAccount` hitting a 409 or a 423, `authFlow` raising on a rejected
+ * login — so the branch below is entered for those too.
+ */
+export const uiTest = test.extend<UiFixtures>({
+  failureArtifacts: [
+    async ({ page, consoleErrors }, use, testInfo) => {
+      testLog.beginScope(testInfo.title);
+      try {
+        await use();
+
+        if (testInfo.status !== testInfo.expectedStatus) {
+          // Inside the `try` and BEFORE the clear, which is what keeps a capture
+          // warning attributed to the test that produced it.
+          await reporting.attachFailureArtifacts(page, consoleErrors, testInfo);
+        }
+      } finally {
+        // The load-bearing keyword, and the one place in this module where a `try`
+        // exists for an ownership reason rather than a diagnostic one. Python clears
+        // from `pytest_runtest_logfinish`, a hook that runs for every test regardless
+        // of outcome, and `test_log.end_scope`'s own docstring names the consequence
+        // of not clearing: "A leaked value gets attributed to whichever test runs
+        // next." `scopeName()` prefers this variable over `test.info()`, so a leak is
+        // not a missing `[test]` field — it is the WRONG test name on every later line
+        // in that worker until something calls `beginScope` again, which only the UI
+        // specs do.
+        testLog.endScope();
+      }
+    },
+    { auto: true },
+  ],
 });
 
 export { expect };
