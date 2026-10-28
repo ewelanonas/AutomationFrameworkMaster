@@ -13,8 +13,9 @@
  * the realistic leak path, which is why it is asserted here rather than assumed.
  */
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from '@support/fixtures';
 
+import { describeAccount } from '@models/testAccount';
 import * as redaction from '@support/redaction';
 
 // Obviously fake, and shaped only so the JWT pattern has something to match.
@@ -59,7 +60,8 @@ test.describe('Redaction', () => {
   });
 
   test('replaces a password field while keeping the key', { tag: ['@smoke'] }, () => {
-    const payload = '{"email":"af-run-tag-1@example.invalid","password":"not-a-real-password"}';
+    const account = { email: 'af-run-tag-1@example.invalid', password: 'not-a-real-password' };
+    const payload = JSON.stringify(account);
 
     const safe = redaction.body(payload);
 
@@ -67,11 +69,20 @@ test.describe('Redaction', () => {
       '"password"',
     );
     expect(safe, 'the value is replaced').toContain(redaction.MARKER);
-    expect(safe, 'the password never survives').not.toContain('not-a-real-password');
+    expect(safe, 'the password never survives').not.toContain(account.password);
     expect(
       safe,
       'email is deliberately not in the field list, so a generated identity stays readable',
-    ).toContain('af-run-tag-1@example.invalid');
+    ).toContain(account.email);
+
+    // The structural half of the defence. A Zod-inferred type is a plain object with
+    // no `toString()` to override and Playwright's expect formatter honours neither
+    // `toString()` nor `util.inspect.custom`, so every credential-bearing model
+    // exports a `describe*` function and that is what a caller writes into a message.
+    expect(
+      describeAccount(account),
+      'describeAccount is what a message carries, so it must never carry the password',
+    ).not.toContain(account.password);
   });
 
   test('replaces a card-shaped run of digits', { tag: ['@smoke'] }, () => {

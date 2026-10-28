@@ -75,17 +75,12 @@ export default ts.config(
     },
   },
 
-  // The import restriction, in its own object so its `files` list can exclude
-  // the framework-internal specs for as long as there is nothing else for them
-  // to import. `src/support/fixtures.ts` lands with the clients and flows
-  // (design §19 step 11); until then `tests/support/*.spec.ts` imports `test`
-  // and `expect` from @playwright/test directly, because the alternative is a
-  // stub fixtures module that the real one would have to replace.
-  // TEMPORARY: delete this `ignores` entry in the same change that switches
-  // those specs to @support/fixtures.
+  // The import restriction. It applies to EVERY spec with no exclusion: the
+  // temporary `ignores: ['tests/support/**']` entry that existed while
+  // `src/support/fixtures.ts` did not is gone, deleted in the same change that
+  // switched those specs to @support/fixtures.
   {
     files: ['tests/**/*.ts'],
-    ignores: ['tests/support/**'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -110,6 +105,18 @@ export default ts.config(
   {
     files: ['tests/**/fixtures.ts'],
     rules: { 'no-empty-pattern': 'off', 'playwright/no-standalone-expect': 'off' },
+  },
+
+  // The same `no-empty-pattern` exemption, for the same reason, for the one file
+  // under src/ that declares fixtures: `appConfig` and `consoleErrors` depend on no
+  // other fixture, so both are written in Playwright's documented
+  // `async ({}, use)` shape. The Playwright preset is not registered for src/, so
+  // its rule is not named here — turning off a rule whose plugin is not loaded in
+  // the same config object is an error, not a no-op. Scoped to this one file;
+  // never a global disable, never a per-line one.
+  {
+    files: ['src/support/fixtures.ts'],
+    rules: { 'no-empty-pattern': 'off' },
   },
 
   { files: ['**/*.js'], extends: [ts.configs.disableTypeChecked] },

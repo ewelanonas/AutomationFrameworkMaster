@@ -14,7 +14,7 @@
  * pinning the random part.
  */
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from '@support/fixtures';
 
 import { buildProcessTag, nextCorrelationId, processTag, runId } from '@support/runContext';
 import { uniqueEmail, uniqueName } from '@support/testValues';
