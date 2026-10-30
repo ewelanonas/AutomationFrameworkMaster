@@ -28,6 +28,7 @@ import { playwrightTimeouts } from '@support/timeouts';
 const config = loadConfig();
 
 runContext.pinRunIdForWorkers(); // before anything derives a path from the run id
+runContext.pinInvocationTagForWorkers(); // and before outputDir is derived from it
 testValues.pinSeedForWorkers(); // each module pins the variable it owns
 
 const t = playwrightTimeouts(config);
@@ -92,7 +93,23 @@ export default defineConfig({
   // own trace, video and screenshot land under the same `failure-artifacts/<runId>/`
   // root the other three modules use. Playwright owns the per-test subdirectory
   // name below it.
-  outputDir: path.join(reportsDir, 'failure-artifacts', runContext.runId()),
+  //
+  // The invocation tag below the run id is not decoration. Playwright **wipes
+  // `outputDir` when a run starts**, and a run id is shared by design — every job
+  // of a workflow run resolves the same `GITHUB_RUN_ID`, and `AF_RUN_ID` lets a
+  // developer reuse one on purpose — so two invocations keyed on the run id alone
+  // share one directory and each deletes the other's in-flight traces. Measured:
+  // two concurrent `test:smoke` shells with `AF_RUN_ID` pinned failed 2 of 23 with
+  // `ENOENT` from `apiRequestContext.dispose`, twice, while the same pair with
+  // distinct run ids went green. Same reasoning as ADR 0006, one layer down: a
+  // shared run id needs a per-invocation discriminator for paths, just as it needs
+  // a per-process one for identities.
+  outputDir: path.join(
+    reportsDir,
+    'failure-artifacts',
+    runContext.runId(),
+    runContext.invocationTag(),
+  ),
   reporter: [
     ['list'],
     ['junit', { outputFile: path.join(reportsDir, 'junit.xml') }],

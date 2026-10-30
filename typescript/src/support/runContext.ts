@@ -82,6 +82,43 @@ function resolveRunId(): string {
   return shortRandomHex();
 }
 
+// Internal plumbing, deliberately not an `AF_<AREA>_<KEY>` config knob: it exists
+// only so a forked worker can read back what its main process minted.
+const INVOCATION_TAG_VARIABLE = 'AF_INTERNAL_INVOCATION_TAG';
+
+/**
+ * The discriminator that keeps two concurrent invocations off each other's
+ * output directory.
+ *
+ * ADR 0006 one layer down. The run id is shared by design — `GITHUB_RUN_ID` is
+ * the same for every job of a workflow run, and `AF_RUN_ID` exists so a
+ * developer can reuse one deliberately — and the process tag answers that for
+ * generated *identities*. It cannot answer it for *paths*, because every worker
+ * process mints its own tag while all of them have to agree on one directory.
+ *
+ * A path keyed only on the run id is unsafe for a different reason than a
+ * duplicate email is: Playwright **wipes `outputDir` when a run starts**. Two
+ * invocations sharing a run id therefore share a directory that each of them
+ * deletes, and the one that started first loses its in-flight trace files
+ * mid-run. The symptom is `ENOENT` thrown from `apiRequestContext.dispose`, far
+ * from the cause and naming neither concurrency nor the run id, which is the
+ * sort of failure automation-principles rule 8 exists to forbid.
+ *
+ * So this is per *invocation*, not per process: minted once in the main process
+ * and pinned into the environment so forked workers inherit it, which is
+ * exactly how the run id reaches a worker. It is internal plumbing with no
+ * documented variable and no entry in `.env.example` — nobody sets it, and a
+ * knob here would only let someone re-break the thing it fixes.
+ */
+function resolveInvocationTag(): string {
+  const inherited = process.env[INVOCATION_TAG_VARIABLE];
+  if (inherited !== undefined && inherited.trim() !== '') {
+    return inherited.trim();
+  }
+
+  return shortRandomHex();
+}
+
 /**
  * The CI per-job key and attempt number when present, followed by random hex.
  *
@@ -115,6 +152,7 @@ export function buildProcessTag(env: NodeJS.ProcessEnv): string {
 
 const RUN_ID: string = resolveRunId();
 const PROCESS_TAG: string = buildProcessTag(process.env);
+const INVOCATION_TAG: string = resolveInvocationTag();
 
 // Node runs one JavaScript thread per worker process, so no lock is needed and
 // none is added. A reader coming from `Interlocked.Increment` or a
@@ -132,6 +170,18 @@ export function runId(): string {
  */
 export function processTag(): string {
   return PROCESS_TAG;
+}
+
+/**
+ * Discriminator for this invocation of the suite, shared by its workers and
+ * different between two invocations that share a run id.
+ *
+ * Used to key the output directory and nothing else: it is not part of any
+ * generated identity, and no log line, report field or correlation id carries
+ * it. See {@link resolveInvocationTag} for why it exists.
+ */
+export function invocationTag(): string {
+  return INVOCATION_TAG;
 }
 
 /** Next value in the process-scoped sequence. Keeps generated data unique. */
@@ -153,18 +203,43 @@ export function nextCorrelationId(): string {
 }
 
 /**
+ * Writes a value into the environment so forked worker processes inherit it,
+ * leaving an existing value alone.
+ *
+ * Blank counts as absent, the same rule every other `AF_*` read in this module
+ * follows. `??=` would leave `NAME=""` in place, and every resolver here treats
+ * blank as absent, so each worker would fall through to its own random hex —
+ * the exact scattering these pins exist to prevent.
+ *
+ * Shared by the two pins below because the mechanism is one mechanism: mint in
+ * the main process, pin before any worker is forked, let the worker's own
+ * module import read it back.
+ */
+function pinForWorkers(variable: string, value: string): void {
+  const existing = process.env[variable];
+  if (existing === undefined || existing.trim() === '') {
+    process.env[variable] = value;
+  }
+}
+
+/**
  * Pins the run id into the environment so every worker process resolves the
  * same one. Pins **only** the run id: the process tag is what keeps identities
  * unique per worker, and ADR 0006 refuses to ship a knob whose only purpose is
  * to re-break that.
  */
 export function pinRunIdForWorkers(): void {
-  // Blank counts as absent, the same rule every other AF_* read follows.
-  // `??=` would leave AF_RUN_ID="" in place, and runId() treats blank as absent,
-  // so every worker would fall through to its own random hex — the exact
-  // scattering this pin exists to prevent.
-  const existing = process.env.AF_RUN_ID;
-  if (existing === undefined || existing.trim() === '') {
-    process.env.AF_RUN_ID = runId();
-  }
+  pinForWorkers('AF_RUN_ID', runId());
+}
+
+/**
+ * Pins this invocation's output-directory discriminator so every worker of this
+ * invocation writes under the same directory, while a second invocation sharing
+ * the run id gets its own. See {@link resolveInvocationTag}.
+ *
+ * Must run before anything derives a path from it, which in practice means
+ * beside `pinRunIdForWorkers()` at the top of `playwright.config.ts`.
+ */
+export function pinInvocationTagForWorkers(): void {
+  pinForWorkers(INVOCATION_TAG_VARIABLE, invocationTag());
 }

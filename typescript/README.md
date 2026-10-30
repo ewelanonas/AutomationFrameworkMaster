@@ -159,12 +159,12 @@ also applies when the runner starts the browser for you.
 Every output path is **absolute**, built from the module's own location, so all
 of this lands in the same place no matter where you launched the run from:
 
-| Path                                            | What                                                                  |
-| ----------------------------------------------- | --------------------------------------------------------------------- |
-| `typescript/reports/junit.xml`                  | the machine-readable report the CI gate reads                         |
-| `typescript/reports/playwright-report/`         | the HTML report (`open: 'never'`, so it never blocks a run)           |
-| `typescript/reports/allure-results/`            | the human report, with `environment.properties` and `categories.json` |
-| `typescript/reports/failure-artifacts/<runId>/` | trace, screenshot and video, retained **on failure only**             |
+| Path                                                            | What                                                                  |
+| --------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `typescript/reports/junit.xml`                                  | the machine-readable report the CI gate reads                         |
+| `typescript/reports/playwright-report/`                         | the HTML report (`open: 'never'`, so it never blocks a run)           |
+| `typescript/reports/allure-results/`                            | the human report, with `environment.properties` and `categories.json` |
+| `typescript/reports/failure-artifacts/<runId>/<invocationTag>/` | trace, screenshot and video, retained **on failure only**             |
 
 A failing test produces its own diagnosis without being re-run: Playwright's
 trace, screenshot and video, plus two attachments this module adds — the page
@@ -178,6 +178,32 @@ test body.
 browser, headless, the element timeout, the run id, the process tag, the data
 seed and the Node version. It is rewritten every run. A log line can be
 swallowed; a file cannot.
+
+#### Why there is an invocation tag below the run id
+
+Playwright **wipes `outputDir` when a run starts**, so a path keyed only on a run
+id is unsafe whenever two invocations legitimately share one — and sharing is the
+normal case, not an edge case: every job of a workflow run resolves the same
+`GITHUB_RUN_ID`, and `AF_RUN_ID` exists precisely so you can reuse an id on
+purpose. Two such runs at once share one directory that each of them deletes, and
+the one that started first loses its in-flight trace files mid-run. Measured
+here: two concurrent `test:smoke` shells with `AF_RUN_ID` pinned failed 2 of 23
+with `ENOENT` thrown from `apiRequestContext.dispose`, reproducibly, while the
+same pair with distinct run ids went green both times. That symptom names neither
+concurrency nor the run id and reports two passing tests as failures, which is
+the kind of failure [automation-principles](../.kiro/steering/automation-principles.md)
+rule 8 exists to forbid.
+
+The extra level is therefore the same idea as
+[ADR 0006](../docs/decisions/0006-process-tag-in-generated-identity.md), applied
+one layer down. That ADR keeps a shared run id and adds a **per-process** tag so
+generated identities stay unique; this keeps a shared run id and adds a
+**per-invocation** tag so output paths stay unique. Per-invocation rather than
+per-process because all the workers of one run must agree on one directory, which
+is why the tag is minted once in the main process and pinned into the environment
+for the workers to inherit — the same mechanism that gets the run id to a worker.
+It is internal plumbing: no documented variable, no `.env.example` entry, nothing
+to set, and it appears in no identity, log line or report field.
 
 ---
 
