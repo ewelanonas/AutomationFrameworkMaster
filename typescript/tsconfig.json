@@ -22,5 +22,12 @@
       "@flows/*": ["src/flows/*"]
     }
   },
-  "include": ["src", "tests", "playwright.config.ts", "global.setup.ts", "global.teardown.ts"]
+  "include": [
+    "src",
+    "tests",
+    "playwright.config.ts",
+    "playwright.destructive.config.ts",
+    "global.setup.ts",
+    "global.teardown.ts"
+  ]
 }

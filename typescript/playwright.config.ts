@@ -76,9 +76,16 @@ export default defineConfig({
   workers: 2,
   timeout: t.testMs, // workflowMs
   expect: { timeout: t.expectMs }, // elementMs
-  // The always-excluded set, the same one Java pins in its POM. A CLI
-  // `--grep-invert` REPLACES this value rather than combining with it, which is
-  // why the package.json scripts deliberately pass only `--grep`.
+  // The always-excluded set, the same one Java pins in its POM.
+  //
+  // A CLI `--grep-invert` **combines with** this value rather than replacing it —
+  // measured on Playwright 1.64.1, where `--list --grep-invert 'zzz-nothing-matches'`
+  // reports 47 rather than 48. So this pattern cannot be narrowed from the command
+  // line, and the scripts pass only `--grep`: adding `--grep-invert` would subtract
+  // further, never less. Selecting `@destructive` therefore needs a config whose
+  // `grepInvert` does not name it, which is `playwright.destructive.config.ts`.
+  // Excluding both tags here rather than in the scripts is what keeps a bare
+  // `playwright test` safe by construction.
   grepInvert: /@destructive|@quarantine/,
   globalSetup: './global.setup.ts',
   // A top-level option, not a `use` key, and it embeds the run id so Playwright's

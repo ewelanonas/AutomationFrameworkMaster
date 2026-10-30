@@ -12,7 +12,7 @@
     "test:smoke": "playwright test --grep @smoke",
     "test:regression": "playwright test --grep @regression",
     "test:contract": "playwright test --grep @contract",
-    "test:destructive": "playwright test --grep @destructive --grep-invert @quarantine",
+    "test:destructive": "playwright test -c playwright.destructive.config.ts --grep @destructive",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && prettier --check .",
     "lint:fix": "eslint . --fix && prettier --write ."

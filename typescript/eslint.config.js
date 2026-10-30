@@ -25,7 +25,13 @@ export default ts.config(
   // of this file. Most un-awaited I/O in this module lives in clients, flows
   // and apiHttp, so "src is not linted" and "src is clean" must not look alike.
   {
-    files: ['src/**/*.ts', 'tests/**/*.ts', 'playwright.config.ts', 'global.setup.ts'],
+    files: [
+      'src/**/*.ts',
+      'tests/**/*.ts',
+      'playwright.config.ts',
+      'playwright.destructive.config.ts',
+      'global.setup.ts',
+    ],
     rules: {
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/await-thenable': 'error',
