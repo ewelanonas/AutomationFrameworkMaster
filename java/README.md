@@ -3,11 +3,12 @@
 A working test automation framework for the JVM, running against the
 [Toolshop](https://practicesoftwaretesting.com) demo application.
 
-**33 tests, green, in about 28 seconds**, four threads in parallel, headless,
-producing both JUnit XML and Allure output.
+**39 tests, green**, four threads in parallel, headless, producing both JUnit XML
+and Allure output.
 
-Branch: `framework/java`. Shared standards and contracts live on `main` — see
-the [root README](../README.md#branching-model).
+This module lives on `master` alongside the other three, together with the shared
+standards and contracts — see the [root README](../README.md#branching-model)
+and [ADR 0005](../docs/decisions/0005-master-carries-every-module.md).
 
 ---
 
@@ -40,8 +41,31 @@ mvn -f java/pom.xml test -Dgroups=contract     # schema verification, no browser
 mvn -f java/pom.xml test "-Dtest=AuthApiTest"  # one class
 ```
 
-Quarantined tests are excluded from every run by default, via
+`quarantine` and `destructive` are excluded from every run by default, through
 `excludedGroups` in the POM.
+
+**To run the destructive suite you must also relax that exclusion**, because
+Surefire applies `groups` and `excludedGroups` independently and exclusion wins:
+
+```powershell
+mvn -f java/pom.xml test -Dgroups=destructive -DexcludedGroups=quarantine   # 1 test
+```
+
+The obvious command is a trap, and it is worth knowing why rather than just
+avoiding it. `-Dgroups=destructive` on its own selects **nothing** and reports
+`Tests run: 0` with `BUILD SUCCESS` — the exclusion still applies, so the one
+test you asked for is filtered straight back out, and the run exits green. A
+nightly job wired that way would report success forever while testing nothing,
+which is the worst failure mode available: a green check over an empty run.
+
+Of the four modules, only this one behaves that way, and the reason is
+mechanical rather than deliberate. Python's `addopts` marker expression is
+overridden by a later `-m` on the command line, and C#'s filters are each
+written out in full with no default exclusion to fight, so in both the obvious
+command does what it looks like. TypeScript hits the same wall as Java for a
+different reason — Playwright's CLI `--grep-invert` combines with the config
+value instead of replacing it — and solves it with a second config file. See
+`typescript/README.md`.
 
 ### Useful switches
 
@@ -52,7 +76,7 @@ Quarantined tests are excluded from every run by default, via
 | `-Dsurefire.rerunFailingTestsCount=0` | Confirm a flake is real (already the default) |
 | `AF_DATA_SEED=<n>` | Reproduce a run's generated data exactly |
 | `AF_RUN_ID=<id>` | Reuse a run id, to target data a previous run created |
-| `AF_TIMEOUTS_ELEMENTMS=<ms>` | Override the element/assertion timeout (1000–600000). CI uses 30000 |
+| `AF_TIMEOUTS_ELEMENTMS=<ms>` | Override the element/assertion timeout (1000–600000). CI sets no override and resolves it from `shared/environments/ci.json`, which keeps 10000 |
 
 ### Reports
 

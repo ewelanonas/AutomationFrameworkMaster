@@ -41,7 +41,22 @@
       sandbox, so it stays out of routine runs.
     -->
     <excludedGroups>quarantine,destructive</excludedGroups>
-    <af.env>local</af.env>
+    <!--
+      Environment selector, and it must default to EMPTY rather than to `local`.
+
+      Surefire passes this through as the `af.env` system property on every run,
+      and ConfigLoader.resolveEnvName() reads that property before it reads the
+      AF_ENV environment variable. A non-empty default therefore made AF_ENV
+      unreachable in this module: CI set AF_ENV=ci, the C# and Python suites
+      honoured it, and Java silently stayed on `local` and kept testing against
+      the public sandbox. That is the opposite of the documented precedence in
+      test-data-and-secrets.md, where environment variables win.
+
+      Empty here means: an explicit `-Daf.env=dev` still wins, because that is a
+      deliberate per-invocation choice; otherwise AF_ENV decides; otherwise the
+      ConfigLoader default of `local` applies.
+    -->
+    <af.env/>
   </properties>
 
   <dependencyManagement>

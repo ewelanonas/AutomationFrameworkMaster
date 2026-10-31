@@ -33,18 +33,19 @@ See [Working with Kiro](#working-with-kiro).
 ## Current state
 
 The standards, the agent setup, and the shared contracts are in place on `master`,
-along with every module built so far. **The Java and C# modules are built and
-green** — both run from a single checkout:
+along with every module built so far. **The Java, C# and Python modules are built
+and green** — all three run from a single checkout:
 
 ```powershell
 git switch master
 
 mvn -f java/pom.xml -B clean test              # 33 tests, ~70s
 dotnet test csharp/AutomationFramework.sln     # 34 tests, ~12s
+uv run --directory python pytest -n auto       # 34 tests
 ```
 
-Python and TypeScript are not built yet. Run
-[workflow 1](#1-bootstrap-a-new-module) on `master` to add one.
+TypeScript is not built yet. Run
+[workflow 1](#1-bootstrap-a-new-module) on `master` to add it.
 
 | Piece | Status |
 | --- | --- |
@@ -53,10 +54,11 @@ Python and TypeScript are not built yet. Run
 | `docs/mcp/` + MCP config template | Ready |
 | `.env.example`, `.gitignore` | Ready |
 | `shared/environments/`, `shared/contracts/` | Ready — [demo target](#the-demo-target) |
-| `docs/decisions/` | Ready — 5 ADRs |
+| `docs/decisions/` | Ready — 7 ADRs |
 | `java/` on `master` | Ready — 33 tests |
 | `csharp/` on `master` | Ready — 34 tests |
-| `python/` `typescript/` | Not built yet |
+| `python/` on `master` | Ready — 34 tests |
+| `typescript/` | Not built yet |
 | `.github/workflows/ci.yml` | Ready — [see CI](#ci) |
 
 ## Branching model
@@ -146,10 +148,12 @@ AutomationFrameworkMaster/
 │   └── environments/     Non-secret env descriptors (URLs, timeouts)
 ├── docs/
 │   ├── mcp/              MCP server setup
-│   └── decisions/        ADRs: NNNN-short-title.md   (5 ADRs)
+│   └── decisions/        ADRs: NNNN-short-title.md   (7 ADRs)
 ├── .github/
 │   ├── workflows/ci.yml  CI
-│   └── scripts/          Standards gate + JUnit summary
+│   ├── scripts/          Standards gate + JUnit summary
+│   ├── actions/          Composite actions: start/stop the demo target
+│   └── docker/           docker-compose.ci.yml — the demo target, CI only
 ├── .env.example          Every variable the suites need
 └── .gitignore
 ```
@@ -488,6 +492,45 @@ than tidying up.
 To point a module at your own application instead, change
 `shared/environments/local.json` or set `AF_UI_BASEURL` / `AF_API_BASEURL`.
 
+#### In CI, we run the application ourselves
+
+The public sandbox answers GitHub Actions egress with HTTP 403 and
+`cf-mitigated: challenge` — a bot challenge, served instead of the app — so the
+Angular bundle never loads and every `getByTestId` times out. CI therefore
+brings the application up on the runner instead, as four digest-pinned
+containers:
+
+| | |
+| --- | --- |
+| Stack | `mariadb`, `laravel-api` (PHP-FPM), `web` (nginx), `angular-ui` |
+| Compose file | `.github/docker/docker-compose.ci.yml` |
+| UI | `http://localhost:4200` |
+| API | `http://localhost:8091` |
+| Selected by | `AF_ENV=ci` → `shared/environments/ci.json` |
+
+Each module job starts its own stack, seeds it, and tears it down, through the
+composite actions in `.github/actions/{start,stop}-demo-target`.
+
+**Local runs are unchanged, and Docker is not a prerequisite for them.**
+`AF_ENV=local` still points at the public sandbox, which is what every
+documented local command uses. If you want the identical target locally:
+
+```powershell
+$env:TOOLSHOP_DB_PASSWORD='changeme-local'
+docker compose -f .github/docker/docker-compose.ci.yml up -d --wait
+$env:AF_ENV='ci'
+# ... run a suite ...
+docker compose -f .github/docker/docker-compose.ci.yml down -v
+```
+
+On the licence, as the upstream terms read rather than as legal advice:
+upstream permits private, internal and non-commercial use, and reserves
+commercial use, hosting and redistribution. This repo is a learning template
+for students, so CI pulls the public images directly and **never mirrors them
+to GHCR or any other registry**. A team doing commercial work points
+`AF_UI_BASEURL` / `AF_API_BASEURL` at its own application under test instead.
+Full reasoning in [ADR 0007](docs/decisions/0007-self-hosted-demo-target.md).
+
 ### Environment
 
 ```powershell
@@ -505,10 +548,14 @@ defaults a base URL to production.
 The timeout policy is overridable the same way, with `AF_TIMEOUTS_ELEMENTMS`,
 `AF_TIMEOUTS_NAVIGATIONMS`, `AF_TIMEOUTS_APIMS` and `AF_TIMEOUTS_WORKFLOWMS`
 (milliseconds, 1000–600000; a malformed or out-of-range value fails the run
-rather than being ignored). CI sets `AF_TIMEOUTS_ELEMENTMS=30000` because a
-cold runner needs longer for the SPA to become interactive;
-`shared/environments/local.json` keeps 10000, so local runs keep the fast
-feedback loop. Nothing branches on the environment name in code.
+rather than being ignored). **CI sets none of them.** It resolves timeouts from
+`shared/environments/ci.json`, which keeps the same 10s element budget
+`local.json` uses — the runner talks to loopback, not to a remote sandbox. CI
+used to raise that value to 30000 for a cold-start theory the trace disproved;
+the variable had to be removed rather than just left unset, because an `AF_*`
+process variable outranks the descriptor
+([ADR 0007](docs/decisions/0007-self-hosted-demo-target.md)). Nothing branches
+on the environment name in code.
 
 ### MCP servers (optional but recommended)
 
@@ -540,7 +587,7 @@ for each module rather than assuming which ones are present:
 
 | Branch | Jobs that run |
 | --- | --- |
-| `master` | `standards`, `java`, `csharp` |
+| `master` | `standards`, `java`, `csharp`, `python` |
 | `framework/java` | `standards`, `java` |
 | `framework/csharp` | `standards`, `csharp` |
 
@@ -554,20 +601,16 @@ rather than mapping branches to modules is what made the restructure cheap.
 | nightly schedule | regression |
 | manual dispatch | your choice of smoke, regression or all |
 
-**No secrets are required.** Both suites register their own throwaway accounts, so
+**No secrets are required.** Every suite registers its own throwaway accounts, so
 a fork pull request runs the complete gate with nothing injected.
 
-**The two module jobs queue rather than run together.** They share one job-level
-concurrency group scoped to the run, because they also share one public demo
-target. At four concurrent workers the C# suite already drew connection resets and
-SSL failures out of that sandbox, caused entirely by our own load; two suites at
-once is the same mistake at a larger scale. This roughly doubles gate time on
-`master`, which is the price of not being the reason the target falls over.
-
-Worth knowing why this is not `needs: [java]` on the C# job: that would also
-serialise them, but it would **skip** C# whenever Java failed, and you would lose
-the C# result exactly when you most want to know whether the breakage is
-cross-module.
+**The module jobs run in parallel.** They used to share one job-level concurrency
+group, because they also shared one public demo target and at four concurrent
+workers our own load drew connection resets out of that sandbox. Each job now
+brings up [its own copy of the application](#in-ci-we-run-the-application-ourselves)
+on its own runner, so there is no shared resource left to serialise them for. The
+group is gone and gate time on `master` is back to the slowest single module
+rather than the sum.
 
 ### The `standards` job
 
@@ -609,10 +652,16 @@ then needs no change to the protection rules.
 
 ### Why smoke and not the full regression
 
-The suites run against a shared public sandbox, and at four workers our own load
-produced connection resets. See
-[ADR 0004](docs/decisions/0004-ci-runs-smoke-not-regression.md), which also covers
-what to change when you point the suites at an environment you own.
+Because a gate has to be fast enough that people wait for it. Breadth belongs in
+the nightly run, and at the API and contract level rather than in the browser.
+See [ADR 0004](docs/decisions/0004-ci-runs-smoke-not-regression.md).
+
+ADR 0004's *other* reason — politeness to a shared public sandbox that drew
+connection resets at four workers — no longer applies in CI, because each job now
+runs [its own copy of the application](#in-ci-we-run-the-application-ourselves).
+Raising parallelism and moving the full regression onto the pull request is now a
+decision about runner minutes, which is the change ADR 0004 said a real project
+should make.
 
 ---
 

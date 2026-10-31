@@ -1,7 +1,8 @@
 # 0004 — CI gates on smoke, and one workflow serves every branch
 
 - **Status:** Accepted. Partly superseded by
-  [ADR 0005](0005-master-carries-every-module.md).
+  [ADR 0005](0005-master-carries-every-module.md) and
+  [ADR 0007](0007-self-hosted-demo-target.md).
 - **Date:** 2026-09-17
 - **Applies to:** `.github/workflows/ci.yml`
 
@@ -12,6 +13,15 @@
 > for module directories rather than mapping branches to modules, which is the part
 > of this design that earned its keep. The branch-layout text is left as written
 > rather than edited, because an ADR records what was decided at the time.
+
+> **Note added 2026-10-22.** The second constraint below — a free public sandbox
+> shared with everyone else — no longer holds in CI. Per
+> [ADR 0007](0007-self-hosted-demo-target.md) every module job now brings up its
+> own copy of the application on its own runner, so "politeness to a shared
+> target" is not a reason for anything here any more, and neither is the
+> `concurrency` group that reasoning justified. What survives is the argument this
+> ADR is actually about: a gate has to be fast enough that people wait for it, so
+> smoke gates and breadth runs nightly. Again the text below is left as written.
 
 ## Context
 
