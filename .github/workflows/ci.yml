@@ -535,26 +535,38 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: typescript/.node-version
-      # package.json declares packageManager: pnpm@10.20.0, so corepack installs
-      # exactly that version rather than whatever is newest. Node 22 still ships it.
+      # Every pnpm step below runs with working-directory: typescript rather than
+      # using the `pnpm --dir typescript` form the module README documents, and the
+      # reason is corepack. Its shim resolves `packageManager` from the CURRENT
+      # directory; invoked from the repository root, which has no package.json, it
+      # finds nothing to pin to and fetches the newest pnpm. That happened: corepack
+      # downloaded 12.16.1, and pnpm then refused with ERR_PNPM_BAD_PM_VERSION
+      # because package.json pins 10.20.0. Running inside the module makes corepack
+      # read typescript/package.json and honour the pin. The `--dir` form is still
+      # correct locally, where pnpm is installed globally rather than through
+      # corepack.
       - name: Enable pnpm
         run: corepack enable pnpm
       - name: Install, locked
-        run: pnpm --dir typescript install --frozen-lockfile
+        working-directory: typescript
+        run: pnpm install --frozen-lockfile
       - name: Check types
-        run: pnpm --dir typescript typecheck
+        working-directory: typescript
+        run: pnpm typecheck
       # eslint plus prettier. The type-aware rules that catch a missing await on a
       # Playwright call live here, so a failure in this step is not a style nit.
       - name: Check lint and formatting
-        run: pnpm --dir typescript lint
+        working-directory: typescript
+        run: pnpm lint
       # Read from the installed package rather than grepped out of the lockfile, so
       # the key can never describe a different version than the one that will run.
       # The key shape matches the other three jobs.
       - name: Resolve the Playwright version
         id: playwright
+        working-directory: typescript
         run: |
           set -euo pipefail
-          VERSION=$(pnpm --dir typescript exec playwright --version | awk '{print $2}')
+          VERSION=$(pnpm exec playwright --version | awk '{print $2}')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Playwright for TypeScript: $VERSION"
       - name: Cache Playwright browsers
@@ -563,8 +575,10 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
       - name: Install Chromium and its OS dependencies
-        run: pnpm --dir typescript exec playwright install --with-deps chromium
+        working-directory: typescript
+        run: pnpm exec playwright install --with-deps chromium
       - name: Run the ${{ needs.detect.outputs.suite }} suite
+        working-directory: typescript
         env:
           SUITE: ${{ needs.detect.outputs.suite }}
         run: |
@@ -577,9 +591,9 @@ jobs:
           # account on purpose and stays out of every CI run, matching the other
           # three modules.
           case "$SUITE" in
-            smoke)      pnpm --dir typescript test:smoke ;;
-            regression) pnpm --dir typescript test:regression ;;
-            all)        pnpm --dir typescript test ;;
+            smoke)      pnpm test:smoke ;;
+            regression) pnpm test:regression ;;
+            all)        pnpm test ;;
             *)          echo "Unknown suite: $SUITE" >&2; exit 1 ;;
           esac
       - name: Summarise the results

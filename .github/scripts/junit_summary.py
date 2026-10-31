@@ -47,8 +47,18 @@ class Totals:
         return self.tests - self.failures - self.errors - self.skipped
 
     @property
+    def has_results(self) -> bool:
+        return self.tests > 0
+
+    @property
     def is_green(self) -> bool:
-        return self.failures == 0 and self.errors == 0
+        # Zero tests is deliberately NOT green. `failures == 0 and errors == 0` is
+        # trivially true for an empty report, so the original form printed a green
+        # headline for a suite that never started. That happened: the TypeScript job
+        # failed at dependency install, no JUnit XML was written, and this script
+        # reported "TypeScript suite (smoke) - PASSED". The note below the table said
+        # no results were found, but nobody reads past a tick.
+        return self.has_results and self.failures == 0 and self.errors == 0
 
 
 class Failure:
@@ -164,8 +174,18 @@ def render(label: str, totals: Totals, failures: list[Failure], problems: list[s
     """Builds the markdown summary."""
     lines: list[str] = []
 
-    status = "PASSED" if totals.is_green else "FAILED"
-    icon = "&#9989;" if totals.is_green else "&#10060;"
+    # Three outcomes, not two. "NO RESULTS" is distinct from "FAILED" because
+    # nothing failed — the suite did not run — and the two need different
+    # investigations: one sends you to a test, the other to the step before it.
+    if not totals.has_results:
+        status = "NO RESULTS"
+        icon = "&#10060;"
+    elif totals.is_green:
+        status = "PASSED"
+        icon = "&#9989;"
+    else:
+        status = "FAILED"
+        icon = "&#10060;"
 
     # ASCII separator rather than an em dash: this string is written to a file the
     # runner renders, and there is no upside to depending on its encoding.
