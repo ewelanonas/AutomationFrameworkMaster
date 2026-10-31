@@ -108,6 +108,7 @@ jobs:
       java: ${{ steps.modules.outputs.java }}
       csharp: ${{ steps.modules.outputs.csharp }}
       python: ${{ steps.modules.outputs.python }}
+      typescript: ${{ steps.modules.outputs.typescript }}
       suite: ${{ steps.suite.outputs.suite }}
     steps:
       - name: Check out
@@ -131,6 +132,11 @@ jobs:
             echo "python=true" >> "$GITHUB_OUTPUT"
           else
             echo "python=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -f typescript/package.json ]; then
+            echo "typescript=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "typescript=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Which suite to run
@@ -164,6 +170,7 @@ jobs:
             echo "| Java module present | ${{ steps.modules.outputs.java }} |"
             echo "| C# module present | ${{ steps.modules.outputs.csharp }} |"
             echo "| Python module present | ${{ steps.modules.outputs.python }} |"
+            echo "| TypeScript module present | ${{ steps.modules.outputs.typescript }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
@@ -507,9 +514,115 @@ jobs:
   # required-checks list does not need editing when a module is added or a job is
   # renamed.
   # ---------------------------------------------------------------------------
+  typescript:
+    name: TypeScript suite
+    needs: [standards, detect]
+    if: needs.detect.outputs.typescript == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+      # Immediately after checkout, so the image pull and the Angular first build
+      # overlap the install and the lint pass rather than adding to them.
+      - name: Start the demo target
+        uses: ./.github/actions/start-demo-target
+      # typescript/.node-version pins 22, and this is the only place that pin is
+      # honoured: the development machine runs Node 25, where corepack is no longer
+      # bundled and no version manager is installed. See
+      # docs/decisions/0008-typescript-node-22-pin.md.
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: typescript/.node-version
+      # package.json declares packageManager: pnpm@10.20.0, so corepack installs
+      # exactly that version rather than whatever is newest. Node 22 still ships it.
+      - name: Enable pnpm
+        run: corepack enable pnpm
+      - name: Install, locked
+        run: pnpm --dir typescript install --frozen-lockfile
+      - name: Check types
+        run: pnpm --dir typescript typecheck
+      # eslint plus prettier. The type-aware rules that catch a missing await on a
+      # Playwright call live here, so a failure in this step is not a style nit.
+      - name: Check lint and formatting
+        run: pnpm --dir typescript lint
+      # Read from the installed package rather than grepped out of the lockfile, so
+      # the key can never describe a different version than the one that will run.
+      # The key shape matches the other three jobs.
+      - name: Resolve the Playwright version
+        id: playwright
+        run: |
+          set -euo pipefail
+          VERSION=$(pnpm --dir typescript exec playwright --version | awk '{print $2}')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Playwright for TypeScript: $VERSION"
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Chromium and its OS dependencies
+        run: pnpm --dir typescript exec playwright install --with-deps chromium
+      - name: Run the ${{ needs.detect.outputs.suite }} suite
+        env:
+          SUITE: ${{ needs.detect.outputs.suite }}
+        run: |
+          set -euo pipefail
+          # playwright.config.ts carries grepInvert: /@destructive|@quarantine/, so
+          # every selection below already excludes both and no --grep-invert appears
+          # here. A CLI --grep-invert would COMBINE with the config value rather than
+          # replace it, which is why the destructive case needs its own config and
+          # why it is not runnable from this workflow at all. Deliberate: it burns an
+          # account on purpose and stays out of every CI run, matching the other
+          # three modules.
+          case "$SUITE" in
+            smoke)      pnpm --dir typescript test:smoke ;;
+            regression) pnpm --dir typescript test:regression ;;
+            all)        pnpm --dir typescript test ;;
+            *)          echo "Unknown suite: $SUITE" >&2; exit 1 ;;
+          esac
+      - name: Summarise the results
+        if: always()
+        run: |
+          python3 .github/scripts/junit_summary.py \
+            "TypeScript suite (${{ needs.detect.outputs.suite }})" \
+            typescript/reports/junit.xml
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: typescript-reports
+          path: |
+            typescript/reports/junit.xml
+            typescript/reports/allure-results/
+          retention-days: 30
+          if-no-files-found: warn
+      # Before the upload, so the container logs are on disk when it runs.
+      - name: Stop the demo target
+        if: always()
+        uses: ./.github/actions/stop-demo-target
+        with:
+          log-directory: typescript/reports/failure-artifacts
+      # A directory root, not a glob: the run id and the per-invocation tag beneath
+      # it are runtime values no workflow can spell. The tree carries
+      # <runId>/<invocationTag>/<per-test-dir>/ and uploads recursively.
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: typescript-failure-artifacts
+          path: typescript/reports/failure-artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # The single aggregating check. Branch protection points at this job by name,
+  # so it must keep the name `Gate` even if the module jobs are renamed.
+  # ---------------------------------------------------------------------------
   gate:
     name: Gate
-    needs: [standards, detect, java, csharp, python]
+    needs: [standards, detect, java, csharp, python, typescript]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -520,15 +633,16 @@ jobs:
           JAVA: ${{ needs.java.result }}
           CSHARP: ${{ needs.csharp.result }}
           PYTHON: ${{ needs.python.result }}
+          TYPESCRIPT: ${{ needs.typescript.result }}
         run: |
           set -euo pipefail
-          echo "standards=$STANDARDS java=$JAVA csharp=$CSHARP python=$PYTHON"
+          echo "standards=$STANDARDS java=$JAVA csharp=$CSHARP python=$PYTHON typescript=$TYPESCRIPT"
 
           FAILED=0
           # A skipped module job is expected: it means that module is not on this
           # branch. Anything other than success or skipped is a failure, including
           # cancelled, so a cancelled run can never report green.
-          for RESULT in "$STANDARDS" "$JAVA" "$CSHARP" "$PYTHON"; do
+          for RESULT in "$STANDARDS" "$JAVA" "$CSHARP" "$PYTHON" "$TYPESCRIPT"; do
             case "$RESULT" in
               success|skipped) ;;
               *) FAILED=1 ;;
